@@ -1,0 +1,232 @@
+{
+  "server": {
+    "port": 3999
+  },
+  "proxy": "",
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+  "rateLimit": {
+    "maxPerMinute": 30
+  },
+  "dataSources": {
+    "excludeGov": true,
+    "custom": []
+  },
+  "targets": [
+    {
+      "name": "示例-后台用户查询",
+      "enabled": false,
+      "type": "phone",
+      "method": "GET",
+      "url": "https://example.com/api/user/query?phone={input}",
+      "headers": {
+        "Cookie": "在此粘贴你自己的登录 Cookie",
+        "Authorization": ""
+      },
+      "body": null,
+      "extract": {
+        "姓名": "json:data.name",
+        "地址": "json:data.address",
+        "备用(正则)": "regex:姓名[:：]\\s*([^\\s<]+)"
+      },
+      "timeout": 15000
+    }
+  ],
+  "login": {
+    "enabled": false,
+    "url": "https://your-site.example/api/login",
+    "method": "POST",
+    "contentType": "json",
+    "body": {
+      "username": "你的账号",
+      "password": "你的密码"
+    },
+    "tokenPath": "data.token",
+    "cookiePath": "",
+    "staticCookie": "",
+    "staticToken": "",
+    "timeout": 15000
+  },
+  "profileMap": {
+    "name": ["姓名", "名字", "name", "realName"],
+    "address": ["住址", "地址", "户籍地址", "生活住址", "address"],
+    "phone": ["电话", "手机号", "phone", "mobile"],
+    "idcard": ["身份证", "身份证号", "idcard", "idNo"]
+  },
+  "lookupProviders": [
+    {
+      "name": "whitepages(美国号→姓名+街道住址)",
+      "enabled": false,
+      "type": "phone",
+      "method": "GET",
+      "url": "https://api.whitepages.com/v2/person?phone={input}",
+      "authHeader": "X-Api-Key",
+      "apiKey": "",
+      "fields": {
+        "name": { "path": "0.name" },
+        "address": { "path": "0.current_addresses.0.address" }
+      }
+    },
+    {
+      "name": "thedatagroup(美国号→姓名+街道住址)",
+      "enabled": false,
+      "type": "phone",
+      "method": "POST",
+      "url": "https://api.tdg1.io/v3/lookup/phone",
+      "authHeader": "x-api-key",
+      "apiKey": "",
+      "contentType": "json",
+      "body": { "Phone": "{input}" },
+      "fields": {
+        "name": { "combine": ["Name.FName", "Name.LName"] },
+        "address": { "combine": ["Address.House", "Address.Street", "Address.StrType", "Address.City", "Address.State", "Address.Zip"] }
+      }
+    },
+    {
+      "name": "dehashed(泄露库→姓名/住址/电话)",
+      "enabled": false,
+      "type": "any",
+      "method": "GET",
+      "url": "https://api.dehashed.com/search?query={input}",
+      "authHeader": "Authorization",
+      "authPrefix": "Basic ",
+      "apiKey": "",
+      "fields": {
+        "name": { "path": "entries.0.name" },
+        "address": { "path": "entries.0.address" },
+        "phone": { "path": "entries.0.phone" }
+      }
+    },
+    {
+      "name": "leakcheck(泄露库)",
+      "enabled": false,
+      "type": "any",
+      "method": "GET",
+      "url": "https://leakcheck.io/api/public?check={input}",
+      "authHeader": "X-API-Key",
+      "apiKey": "",
+      "fields": {
+        "name": { "path": "0.data.0.name" },
+        "address": { "path": "0.data.0.address" },
+        "phone": { "path": "0.data.0.phone" }
+      }
+    },
+    {
+      "name": "intelx(泄露/暗网)",
+        "enabled": false,
+        "type": "any",
+        "method": "GET",
+        "url": "https://2.intelx.io/phonebook/search?term={input}",
+        "authHeader": "X-Key",
+        "apiKey": "",
+        "fields": {
+          "name": { "path": "0.name" },
+          "address": { "path": "0.address" }
+        }
+      },
+      {
+        "name": "thatsthem(美国 姓名→街道住址)",
+        "enabled": false,
+        "requireKey": false,
+        "type": "name",
+        "format": "html",
+        "method": "GET",
+        "url": "https://thatsthem.com/name/{input}",
+        "fields": {
+          "name": { "regex": "itemprop=\"name\"[^>]*>([^<]{2,60})<" },
+          "address": { "regex": "itemprop=\"streetAddress\"[^>]*>([^<]{3,120})<" },
+          "phone": { "regex": "itemprop=\"telephone\"[^>]*>([^<]{7,20})<" }
+        }
+      },
+      {
+        "name": "fastpeoplesearch(美国 姓名→街道住址)",
+        "enabled": false,
+        "requireKey": false,
+        "type": "name",
+        "format": "html",
+        "method": "GET",
+        "url": "https://www.fastpeoplesearch.com/name/{input}",
+        "fields": {
+          "name": { "regex": "itemprop=\"name\"[^>]*>([^<]{2,60})<" },
+          "address": { "regex": "itemprop=\"streetAddress\"[^>]*>([^<]{3,120})<" },
+          "phone": { "regex": "itemprop=\"telephone\"[^>]*>([^<]{7,20})<" }
+        }
+      },
+      {
+        "name": "truepeoplesearch(美国 姓名→街道住址)",
+        "enabled": false,
+        "requireKey": false,
+        "type": "name",
+        "format": "html",
+        "method": "GET",
+        "url": "https://www.truepeoplesearch.com/results?name={input}",
+        "fields": {
+          "name": { "regex": "class=\"h4\"[^>]*>([^<]{2,60})<" },
+          "address": { "regex": "<a[^>]+href=\"/address/[^\"]*\"[^>]*>([^<]{3,120})</a>" },
+          "phone": { "regex": "class=\"[^\"]*phone[^\"]*\"[^>]*>([^<]{7,20})<" }
+        }
+      },
+      {
+        "name": "searchpeoplefree(美国 姓名→街道住址)",
+        "enabled": false,
+        "requireKey": false,
+        "type": "name",
+        "format": "html",
+        "method": "GET",
+        "url": "https://www.searchpeoplefree.com/find/{input}",
+        "fields": {
+          "name": { "regex": "itemprop=\"name\"[^>]*>([^<]{2,60})<" },
+          "address": { "regex": "itemprop=\"streetAddress\"[^>]*>([^<]{3,120})<" },
+          "phone": { "regex": "itemprop=\"telephone\"[^>]*>([^<]{7,20})<" }
+        }
+      }
+    ],
+  "telegram": {
+    "enabled": false,
+    "apiId": "",
+    "apiHash": "",
+    "sessionString": "",
+    "waitMs": 8000,
+    "bots": [
+      {
+        "name": "户籍查询(身份证号→姓名+户籍地址)",
+        "enabled": false,
+        "type": "idcard",
+        "target": "@机器人用户名",
+        "queryTemplate": "{input}",
+        "waitMs": 10000,
+        "parse": {
+          "name": { "regex": "姓名[:：]\\s*([^\\s\\n]+)" },
+          "address": { "regex": "(?:住址|户籍地址?|地址)[:：]\\s*([^\\n]+)" },
+          "idcard": { "regex": "(?:身份证号?|证件号)[:：]\\s*([0-9Xx]{15,18})" }
+        }
+      },
+      {
+        "name": "手机查档(手机号→姓名+快递地址)",
+        "enabled": false,
+        "type": "phone",
+        "target": "@机器人用户名",
+        "queryTemplate": "{input}",
+        "waitMs": 10000,
+        "parse": {
+          "name": { "regex": "姓名[:：]\\s*([^\\s\\n]+)" },
+          "address": { "regex": "(?:地址|收货地址|快递地址)[:：]\\s*([^\\n]+)" },
+          "phone": { "regex": "(?:手机|电话)[:：]\\s*([0-9]{7,15})" }
+        }
+      },
+      {
+        "name": "姓名反查",
+        "enabled": false,
+        "type": "name",
+        "target": "@机器人用户名",
+        "queryTemplate": "{input}",
+        "waitMs": 10000,
+        "parse": {
+          "name": { "regex": "姓名[:：]\\s*([^\\s\\n]+)" },
+          "address": { "regex": "(?:住址|地址)[:：]\\s*([^\\n]+)" },
+          "phone": { "regex": "(?:手机|电话)[:：]\\s*([0-9]{7,15})" },
+          "idcard": { "regex": "(?:身份证号?|证件号)[:：]\\s*([0-9Xx]{15,18})" }
+        }
+      }
+    ]
+  }
+}

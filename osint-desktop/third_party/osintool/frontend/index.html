@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSINTool</title>
+    <link rel="stylesheet" href="./styles/index.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-ui@2.15.3/lib/theme-chalk/index.css">
+    <style>[v-cloak] { display: none !important;}</style>
+    <!-- 预加载另一个页面 -->
+    <link rel="preload" href="index.html">
+    <link rel="preload" href="edit.html">
+</head>
+<body>
+    <div id="app" v-cloak>
+        <div v-if="!pageReady" class="page-loading">
+            <i class="el-icon-loading"></i>
+        </div>
+        <transition name="fade">
+            <div v-if="pageReady" class="container">
+                <!-- 页面标题 -->
+                <div class="page-header">
+                    <div class="search-bar">
+                        <el-input
+                        v-model="searchQuery"
+                        placeholder="搜索任务名称或URL..."
+                        prefix-icon="el-icon-search"
+                        clearable
+                        @input="onSearchInput"
+                        style="width: 300px;">
+                        </el-input>
+                        <span class="button-group">
+                            <el-button type="info" icon="el-icon-download" @click="showImportDialog">批量导入</el-button>
+                            <el-button type="primary" icon="el-icon-plus" @click="createTask">新建任务</el-button>
+                        </span>
+                    </div>
+                </div>
+
+                <el-dialog title="导入任务" :visible.sync="importDialogVisible" width="500px" append-to-body>
+                    <el-input
+                        type="textarea"
+                        v-model="importJson"
+                        placeholder="将 JSON 数据粘贴到此处，格式为 JSON 数组：[
+                        {'id': '123', 'title': 'JSON', 'url': 'http://abc.com', ...},
+                        ...]"
+                        rows="10">
+                    </el-input>
+                    <div slot="footer" class="dialog-footer">
+                        <el-button @click="importDialogVisible = false">取消</el-button>
+                        <el-button type="primary" @click="importTasks">导入</el-button>
+                    </div>
+                </el-dialog>
+
+                <!-- 任务列表 -->
+                <div class="table-container">
+                    <el-table
+                        ref="table"
+                        :data="tasks"
+                        style="width: 100%"
+                        v-loading="loading"
+                        v-model:selection="selectedTasks"
+                        :row-key="getRowKey"
+                        highlight-current-row
+                        border
+                        stripe
+                        @selection-change="handleSelectionChange"
+                        @sort-change="handleSortChange"
+                        @filter-change="handleFilterChange">
+                        <el-table-column
+                            type="selection"
+                            :reserve-selection="true"
+                            width="40">
+                        </el-table-column>
+                        <el-table-column
+                            prop="title"
+                            label="任务名称"
+                            min-width="120">
+                            <template slot-scope="scope">
+                                <el-tooltip :content="getTooltipContent(scope.row)" placement="top">
+                                    <span>{{ scope.row.title }}</span>
+                                </el-tooltip>
+                            </template>
+                        </el-table-column>
+                        <el-table-column
+                            prop="url"
+                            label="URL"
+                            min-width="200">
+                            <template slot-scope="scope">
+                                <el-tooltip :content="scope.row.url" placement="top">
+                                    <a :href="scope.row.url" target="_blank" class="url-cell">
+                                        {{ scope.row.url }}
+                                    </a>
+                                </el-tooltip>
+                            </template>
+                        </el-table-column>
+                        <el-table-column
+                            prop="dataFormat"
+                            label="数据格式"
+                            min-width="80">
+                            <template slot-scope="scope">
+                                <el-tooltip :content="scope.row.dataFormat" placement="top">
+                                    <span>{{ scope.row.dataFormat }}</span>
+                                </el-tooltip>
+                            </template>
+                        </el-table-column>
+                        <el-table-column
+                            prop="scheduleType"
+                            label="执行方式"
+                            min-width="100"
+                            :filters="scheduleTypeFilters"
+                            >
+                            <template slot-scope="scope">
+                                <el-tag size="medium" :type="getScheduleTypeTag(scope.row.scheduleType)">
+                                    {{ scheduleTypeMap[scope.row.scheduleType] }}
+                                </el-tag>
+                            </template>
+                        </el-table-column>
+                        <!-- sortable="custom" 取消默认的排序，需自定义排序 -->
+                        <el-table-column
+                            prop="next_run_time"
+                            label="下次运行时间"
+                            min-width="120"
+                            sortable="custom">
+                            <template slot-scope="scope">
+                                <el-tooltip :content="scope.row.next_run_time" placement="top">
+                                    <span>{{ scope.row.next_run_time }}</span>
+                                </el-tooltip>
+                            </template>
+                        </el-table-column>
+                        <el-table-column
+                            prop="isActive"
+                            label="状态"
+                            min-width="100"
+                            :filters="isActiveFilters">
+                            <template slot-scope="scope">
+                                <el-tag :type="scope.row.isActive ? 'success' : 'danger'">
+                                    {{ scope.row.isActive ? '运行中' : '已停止' }}
+                                </el-tag>
+                            </template>
+                        </el-table-column>
+                        <el-table-column
+                            label="操作"
+                            min-width="200"
+                            fixed="right">
+                            <template slot-scope="scope">
+                                <div class="action-button-group">
+                                    <el-tooltip content="编辑任务" placement="top">
+                                        <el-button
+                                            size="mini"
+                                            type="primary"
+                                            plain
+                                            icon="el-icon-edit"
+                                            @click="editTask(scope.row)">
+                                        </el-button>
+                                    </el-tooltip>
+                                    <el-tooltip :content="scope.row.isActive ? '停止任务' : '启动任务'" placement="top">
+                                        <el-button
+                                            size="mini"
+                                            :type="scope.row.isActive ? 'danger' : 'success'"
+                                            plain
+                                            :icon="scope.row.isActive ? 'el-icon-video-pause' : 'el-icon-video-play'"
+                                            @click="toggleTaskStatus(scope.row)">
+                                        </el-button>
+                                    </el-tooltip>
+                                    <el-tooltip content="删除任务" placement="top">
+                                        <el-button
+                                            size="mini"
+                                            type="danger"
+                                            plain
+                                            icon="el-icon-delete"
+                                            @click="deleteTask(scope.row)">
+                                        </el-button>
+                                    </el-tooltip>
+                                    <el-tooltip content="爬取结果" placement="top">
+                                        <el-button
+                                            size="mini"
+                                            type="warning"
+                                            plain
+                                            icon="el-icon-folder-opened"
+                                            @click="getResult(scope.row)">
+                                        </el-button>
+                                    </el-tooltip>
+                                </div>
+                            </template>
+                        </el-table-column>
+                        <template slot="empty">
+                            <div class="empty-data">
+                                <i class="el-icon-document" style="font-size: 48px; margin-bottom: 16px;"></i>
+                                <p>暂无任务数据</p>
+                            </div>
+                        </template>
+                    </el-table>
+                    <el-pagination
+                        class="pagination"
+                        v-if="totalTasks > 0"
+                        :current-page="currentPage"
+                        :page-size="perPage"
+                        :total="totalTasks"
+                        layout="prev, pager, next, jumper,  ->, total, sizes"
+                        @current-change="handlePageChange"
+                        @size-change="handlePageSizeChange">
+                    </el-pagination>
+                    <!-- 底部操作区域，仅在有选中项时显示 -->
+                    <div class="footer-action-bar" v-if="selectedTasks.length > 0">
+                        <span style="margin-right: 20px;">已选中 {{ selectedTasks.length }} 项</span>
+                        <span class="footer-action-button">
+                            <el-button type="info" @click="exportSelectedTasks">批量导出</el-button>
+                            <el-button type="success" @click="runSelectedTasks">批量启动</el-button>
+                            <el-button type="warning" @click="stopSelectedTasks">批量停止</el-button>
+                            <el-button type="danger" @click="deleteSelectedTasks">批量删除</el-button>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </transition>
+    </div>
+</body>
+<script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/element-ui@2.15.3/lib/index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
+<script>
+    new Vue({
+        el: '#app',
+        data: {
+            pageReady: false,
+            tasks: [],
+            loading: false,
+            searchQuery: '',
+            scheduleTypeMap: {
+                'fixed': '定时',
+                'interval': '间隔',
+                'random': '随机'
+            },
+            isActiveMap: [
+                { text: '运行中', value: true },
+                { text: '已停止', value: false }
+            ],
+            currentPage: 1,
+            perPage: 10,
+            totalTasks: 0,
+            // 新增排序与筛选状态
+            sort: [],      // 例如：[{ sortField: 'title', sortOrder: 'asc' }]
+            filters: {},     // 例如：{ scheduleType: ['fixed'] }
+            selectedTasks: [],  // 任务多选，用于批量操作
+            importDialogVisible: false,
+            importJson: '',
+        },
+        computed: {
+            getFilters() {
+                return (map) => {
+                    if (Array.isArray(map)) {
+                        return map;
+                    }
+                    return Object.entries(map).map(([value, text]) => ({ text, value }));
+                };
+            },
+            scheduleTypeFilters() {
+                return this.getFilters(this.scheduleTypeMap);
+            },
+            isActiveFilters() {
+                return this.getFilters(this.isActiveMap);
+            }
+        },
+        methods: {
+            getTooltipContent(row) {
+                return `${row.title}\n${row.id}`;
+            },
+            getScheduleTypeTag(type) {
+                const tagMap = {
+                    'fixed': 'primary',
+                    'interval': 'success',
+                    'random': 'warning'
+                };
+                return tagMap[type] || 'info';
+            },
+            getRowKey(row) { return row.id;},
+            handleSelectionChange(val) {this.selectedTasks = val;},
+            // 通用批量操作函数
+            async batchOperation(operation, apiCall) {
+                if (this.selectedTasks.length === 0) {
+                    this.$message.warning('请先选择任务');
+                    return;
+                }
+                try {
+                    await this.$confirm(`此操作将${operation}选中的${this.selectedTasks.length}个任务，是否继续？`, '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    });
+
+                    const taskIds = this.selectedTasks.map(task => task.id);
+                    const response = apiCall(taskIds);
+                    await this.loadTasks();
+                    this.selectedTasks = [];
+                    this.$message.success({
+                        message: `${operation}成功：${response}`,
+                        duration: 2000
+                    });
+                } catch (error) {
+                    if (error !== 'cancel') {
+                        this.$message.error({
+                            message: `${operation}失败：${error}`,
+                            duration: 3000
+                        });
+                        console.error('Batch operation error:', error);
+                    }
+                }
+            },
+            showImportDialog() {
+                this.importDialogVisible = true;
+                this.importJson = '';
+            },
+            async importTasks() {
+                try {
+                    const jsonData = JSON.parse(this.importJson);
+                    if (!Array.isArray(jsonData)) {
+                        this.$message.warning('导入的数据必须是数组格式');
+                        return;
+                    }
+                    for (const task of jsonData) {
+                        for (const field of ["id", "title", "url"]) {
+                            if (!task.hasOwnProperty(field)) {
+                                this.$message.warning(`任务 ${task.id || 'null'} 缺少必要字段: ${field}`);
+                                return;
+                            }
+                        }
+                    }
+                    await window.api.importTasks(jsonData);
+                    this.$message.success({ message: '导入成功', duration: 2000});
+                    this.importDialogVisible = false;
+                    this.loadTasks();
+                } catch (error) {
+                    this.$message.error({ message: `导入失败：${error}`, duration: 3000});
+                } finally {
+                    this.importDialogVisible = false;
+                    this.importJson = '';
+                }
+            },
+            async exportSelectedTasks() {
+                if (this.selectedTasks.length === 0) {
+                    this.$message.warning('请先选择任务');
+                    return;
+                }
+                try {
+                    const taskIds = this.selectedTasks.map(task => task.id);
+                    const isOk = await window.api.exportTasks(taskIds) || false;
+                    if (isOk) this.$message.success({ message: '导出成功', duration: 2000});
+                } catch (error) {
+                    this.$message.error({ message: `导出失败：${error}`, duration: 3000});
+                }
+            },
+            async deleteSelectedTasks() { await this.batchOperation('删除', window.api.deleteTasks);},
+            async runSelectedTasks() { await this.batchOperation('启动', window.api.runTasks);},
+            async stopSelectedTasks() { await this.batchOperation('停止', window.api.stopTasks);},
+            handleSortChange({ column, prop, order }) {
+                this.sort = []; // 清空之前的排序条件
+                if (order) {
+                    this.sort.push({
+                        sortField: prop,
+                        sortOrder: order === 'ascending' ? 'asc' : 'desc'
+                    });
+                }
+                // 每次排序变化后，重新加载数据
+                this.loadTasks();
+            },
+            // 处理筛选变化，参数 filters 为对象，形如 { scheduleType: ['fixed', 'interval'], ... }
+            handleFilterChange(filters) {
+                // 保存筛选条件
+                const tableColumns = this.$refs.table.columns;
+                console.log("tableColumns：", tableColumns)
+                const newFilters = {};
+                for (const [columnKey, values] of Object.entries(filters)) {
+                    console.log(columnKey, values)
+                    const column = tableColumns.find(col => col.id === columnKey);
+                    if (column) {
+                        newFilters[column.property] = values;
+                    }
+                }
+                this.filters = newFilters;
+                // 重新加载数据
+                this.loadTasks();
+            },
+            // 防抖处理的函数，使用 lodash.debounce
+            onSearchInput: _.debounce(function() {
+                this.currentPage = 1;  // 重置当前页为1
+                this.loadTasks();
+                console.log("onSeerchInput")
+            }, 500),  // 设置500ms的延迟
+            async loadTasks() {
+                this.loading = true;
+                try {
+                    // 整合所有查询参数
+                    const params = {
+                        page: this.currentPage,
+                        perPage: this.perPage,
+                        searchQuery: this.searchQuery,
+                        sort: JSON.stringify(this.sort),
+                        filters: JSON.stringify(this.filters)
+                    };
+                    console.log('Fetching tasks with params:', params);
+                    const response = await window.api.getTasksPaginated(params);
+                    this.tasks = Array.isArray(response.data) ? response.data : [];
+                    // 移除每一项的 children 属性，避免el-table渲染子任务
+                    this.tasks = this.tasks.map(task => {
+                        const { children, ...rest } = task;
+                        return rest;
+                    });
+                    this.totalTasks = response.total;
+                    localStorage.setItem('params', JSON.stringify(params));
+                } catch (error) {
+                    this.$message.error({
+                        message: '加载任务失败',
+                        duration: 3000
+                    });
+                    console.error('Load tasks error:', error);
+                } finally {
+                    this.loading = false;
+                }
+            },
+            handlePageChange(page) {
+                this.currentPage = page;
+                this.loadTasks();
+            },
+            handlePageSizeChange(size) {
+                this.perPage = size;
+                this.loadTasks();
+            },
+            createTask() {
+                // 清除本地存储的任务ID
+                localStorage.removeItem('currentTaskId');
+                window.location.href = 'edit.html';
+            },
+            editTask(task) {
+                // 存储要编辑的任务ID
+                localStorage.setItem('currentTaskId', JSON.stringify(task.id));
+                window.location.href = `edit.html?id=${task.id}`;
+            },
+            async toggleTaskStatus(task) {
+                try {
+                    await window.api.updateTaskStatus(task.id, !task.isActive);
+                    await this.loadTasks();
+                    this.$message.success({
+                        message: `任务${task.isActive ? '停止' : '启动'}成功`,
+                        duration: 2000
+                    });
+                } catch (error) {
+                    this.$message.error({
+                        message: `任务${task.isActive ? '停止' : '启动'}失败`,
+                        duration: 3000
+                    });
+                    console.error('Toggle task status error:', error);
+                }
+            },
+            async deleteTask(task) {
+                try {
+                    await this.$confirm('此操作将永久删除该任务, 是否继续?', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    });
+
+                    await window.api.deleteTask(task.id);
+                    await this.loadTasks();
+                    this.$message.success({
+                        message: '删除成功',
+                        duration: 2000
+                    });
+                } catch (error) {
+                    if (error !== 'cancel') {
+                        this.$message.error({
+                            message: '删除失败',
+                            duration: 3000
+                        });
+                        console.error('Delete task error:', error);
+                    }
+                }
+            },
+            async getResult(task) {
+                try {
+                    if (!task.id) {
+                        this.$message.warning('请先选择任务');
+                        return;
+                    }
+                    await window.api.openTaskResultFolder(task.id);
+                } catch (error) {
+                    this.$message.error({
+                        message: '打开文件夹失败',
+                        duration: 3000
+                    });
+                }
+            }
+        },
+        async mounted() {
+            try {
+                // 从本地存储中获取参数（简单状态存储，就不做多窗口了）
+                const storedParams = localStorage.getItem('params');
+                if (storedParams) {
+                    const params = JSON.parse(storedParams);
+                    this.currentPage = params.page;
+                    this.perPage = params.perPage;
+                    this.searchQuery = params.searchQuery;
+                    this.sort = JSON.parse(params.sort);
+                }
+                await this.loadTasks();
+                this.$nextTick(() => {
+                    this.pageReady = true;
+                });
+            } catch (error) {
+                this.$message.error({
+                    message: '页面加载失败',
+                    duration: 3000
+                });
+                console.error('Page load error:', error);
+            }
+        }
+    });
+    window.api.receiveFromMain('quit', () => {
+        console.log('quit')
+        localStorage.removeItem('params');  // 退出时清除本地存储的参数
+    });
+</script>
+</html>

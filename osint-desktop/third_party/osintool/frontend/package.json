@@ -1,0 +1,16 @@
+{
+  "name": "osintool-client",
+  "version": "1.0.0",
+  "description": "OSINTool Electron Client",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "djchanahcjd",
+  "license": "MIT",
+  "dependencies": {
+    "custom-electron-titlebar": "^4.2.8",
+    "electron": "^24.8.8",
+    "osintool-client": "file:"
+  }
+}

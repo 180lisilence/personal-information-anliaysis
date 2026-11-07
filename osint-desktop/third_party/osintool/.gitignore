@@ -1,0 +1,9 @@
+.vscode/
+frontend/node_modules/
+data/
+*/__pycache__
+__pycache__
+script/
+log.txt
+app_fastapi.py
+# db.json

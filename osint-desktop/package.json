@@ -1,0 +1,53 @@
+{
+  "name": "osint-desktop",
+  "version": "0.1.0",
+  "description": "个人信息聚合工具（桌面客户端）",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "server": "node server/index.js",
+    "build": "electron-builder --win"
+  },
+  "author": "",
+  "license": "MIT",
+  "build": {
+    "appId": "com.osint.desktop",
+    "productName": "OSINT聚合工具",
+    "files": [
+      "electron/**/*",
+      "server/**/*",
+      "src/**/*",
+      "renderer/**/*",
+      "data/**/*",
+      "config.json",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "directories": {
+      "output": "dist"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "telegram": "^2.26.22",
+    "undici": "^6.29.0"
+  }
+}

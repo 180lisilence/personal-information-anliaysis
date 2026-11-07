@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSINTool</title>
+    <style>[v-cloak] { display: none !important;}</style>
+    <link rel="preload" href="index.html">
+    <link rel="preload" href="edit.html">
+    <link rel="stylesheet" href="./styles/edit.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-ui@2.15.3/lib/theme-chalk/index.css">
+    <!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"> -->
+</head>
+<body>
+<div id="app" v-cloak>
+    <!-- 添加加载指示器 -->
+    <div class="page-loading" v-if="!pageReady">
+        <i class="el-icon-loading"></i>
+    </div>
+    <transition name="fade">
+        <div v-if="pageReady" class="container">
+            <div class="task-header">
+                <el-button icon="el-icon-back" @click="backToList">返回列表</el-button>
+                <el-input v-model="currentTask.title" placeholder="任务名称" style="width: 200px;"><template #prepend>名称</template></el-input>
+                <span style="font-size:12px; color: grey;">id: {{currentTask.id}}</span>
+                <el-button :type="currentTask.isActive ? 'success' : 'danger'"
+                           :icon="currentTask.isActive ? 'el-icon-check' : 'el-icon-close'" @click="toggleTaskStatus">
+                    {{ currentTask.isActive ? '运行中' : '已停止' }}
+                </el-button>
+                <el-select v-model="currentTask.id" filterable placeholder="选择任务" @change="loadTask" style="width: 200px;">
+                    <el-option v-for="task in tasks" :key="task.id" :label="task.title" :value="task.id">
+                        <span style="float: left">{{ task.title }}</span>
+                        <span style="float: right; font-weight: bold"
+                              :style="{ color: task.isActive ? '#85CE61' : '#F56C6C' }">
+                                {{ task.isActive ? '运行中' : '已停止' }}
+                            </span>
+                    </el-option>
+                </el-select>
+            </div>
+
+            <el-form label-width="80px">
+                <el-form-item label="网址">
+                    <el-input v-model="currentTask.url" placeholder="请输入网址或本地文件路径，如: http://example.com 或 file://path/to/file"></el-input>
+                </el-form-item>
+                <el-form label-width="80px">
+                    <el-row :gutter="20">
+                        <el-col :span="6">
+                            <el-form-item label="爬取模式">
+                                <el-select v-model="currentTask.crawlMode" placeholder="请选择爬取模式">
+                                    <el-option label="😄普通模式" value="general"></el-option>
+                                    <el-option label="👑专家模式" value="pro"></el-option>
+                                </el-select>
+                            </el-form-item>
+                        </el-col>
+                        <el-col :span="12">
+                            <el-form-item label="定时周期">
+                                <el-select v-model="currentTask.scheduleType" placeholder="执行方式" style="width: 120px"
+                                           @change="handleScheduleTypeChange">
+                                    <el-option label="定时" value="fixed"></el-option>
+                                    <el-option label="间隔" value="interval"></el-option>
+                                    <el-option label="随机" value="random"></el-option>
+                                </el-select>
+                                <template v-if="currentTask.scheduleType === 'fixed'">
+                                    <span style="margin: 0 5px">每</span>
+                                    <el-input-number v-model="currentTask.days" :min="1" controls-position="right" style="width: 100px">
+                                    </el-input-number>
+                                    <span style="margin: 0 5px">天</span>
+                                    <el-time-picker v-model="currentTask.execTime" format="HH:mm" value-format="HH:mm"
+                                                    placeholder="选择时间" style="width: 120px">
+                                    </el-time-picker>
+                                </template>
+                                <template v-else-if="currentTask.scheduleType === 'interval'">
+                                    <span style="margin: 0 5px">每</span>
+                                    <el-input-number v-model="currentTask.interval" :min="1" controls-position="right"
+                                                     style="width: 100px">
+                                    </el-input-number>
+                                    <span style="margin: 0 5px">分钟</span>
+                                </template>
+                            </el-form-item>
+                        </el-col>
+                    </el-row>
+                </el-form>
+
+                <template v-if="currentTask.crawlMode === 'pro'">
+                    <el-form-item label="解析脚本">
+                        <el-upload
+                                class="upload"
+                                action="#"
+                                :show-file-list="true"
+                                :on-change="handleScriptFileChange"
+                                :before-upload="beforeScriptFileUpload"
+                                :limit="1"
+                        >
+                            <template #trigger>
+                                <el-button type="primary" size="medium">
+                                    <i class="el-icon-upload2"></i> 上传脚本
+                                </el-button>
+                            </template>
+                            <span class="script-status" v-if="isScriptExists">
+                                    检测到脚本：<a href="#" @click.prevent="openScriptFile">script/{{currentTask.id}}.py</a>
+                                </span>
+                            <div class="upload-tip">
+                                <i class="el-icon-info"></i> 仅支持 .py 文件，请将解析结果存储到 data/{{ currentTask.id }} 文件夹
+                            </div>
+                        </el-upload>
+                    </el-form-item>
+                </template>
+
+                <template v-else>
+                    <el-form label-width="80px">
+                        <el-row :gutter="20">
+                            <el-col :span="12">
+                                <el-form-item label="Cookies">
+                                    <el-input v-model="currentTask.cookies" placeholder="（可空）请复制粘贴浏览器的Cookies，如bid=xxx; xyz=999; ..."></el-input>
+                                </el-form-item>
+                            </el-col>
+                        </el-row>
+                    </el-form>
+                    <el-form label-width="80px">
+                        <el-row :gutter="20">
+                            <el-col :span="6">
+                                <el-form-item label="数据格式">
+                                    <el-select v-model="currentTask.dataFormat" placeholder="请选择数据格式">
+                                        <el-option label="文本类（TXT）" value="txt"></el-option>
+                                        <el-option label="表格类（CSV）" value="csv"></el-option>
+                                        <el-option label="网页类（HTML）" value="html"></el-option>
+                                    </el-select>
+                                </el-form-item>
+                            </el-col>
+                            <el-col :span="6">
+                                <el-form-item label="解析类型">
+                                    <el-select v-model="currentTask.parseType" placeholder="表格解析类型">
+                                        <el-option label="列索引（从0开始）" :value="0" v-if="currentTask.dataFormat !== 'html'"></el-option>
+                                        <el-option label="正则匹配" :value="1"></el-option>
+                                    </el-select>
+                                </el-form-item>
+                            </el-col>
+                            <el-col :span="12">
+                                <el-form-item label="最大爬取数" label-width="100px">
+                                    <el-input-number v-model="currentTask.maxCount" :min="1" controls-position="right" placeholder="不少于1" style="margin: 0 4px;"></el-input-number>
+                                </el-form-item>
+                            </el-col>
+                        </el-row>
+                    </el-form>
+                    <template  v-if="currentTask.dataFormat === 'html'">
+                        <el-form-item label="动作组">
+                            <div v-for="(item, index) in currentTask.before_action_group" :key="index" class="dynamic-row">
+                                <el-row :gutter="10" type="flex" align="middle">
+                                    <el-col :span="7">
+                                        <el-input v-model="item.source" placeholder="请输入动作名称"></el-input>
+                                    </el-col>
+                                    <el-col :span="4">
+                                        <el-select v-model="item.actionType" placeholder="动作类型">
+                                            <el-option label="点击" value="click"></el-option>
+                                            <el-option label="输入" value="input"></el-option>
+                                        </el-select>
+                                    </el-col>
+                                    <el-col :span="11">
+                                        <el-input v-if="item.actionType == 'click'" v-model="item.target" placeholder="请输入点击元素的XPath"></el-input>
+                                        <el-input v-else-if="item.actionType == 'input'" v-model="item.target" placeholder="请输入内容"></el-input>
+                                    </el-col>
+                                    <el-col :span="2">
+                                        <el-button type="danger" icon="el-icon-delete" @click="removeActionType(index, currentTask)"></el-button>
+                                    </el-col>
+                                </el-row>
+                            </div>
+                            <el-button type="primary" icon="el-icon-plus" @click="addActionType(currentTask)">添加开始动作</el-button>
+                        </el-form-item>
+                        <el-form-item label="XPath">
+                            <el-row :gutter="10">
+                                <el-col :span="7">
+                                    <el-input v-model="currentTask.xpaths.table" placeholder="表格XPath，如: //div[@role='table']"></el-input>
+                                </el-col>
+                                <el-col :span="7">
+                                    <el-input v-model="currentTask.xpaths.row" placeholder="行XPath（相对于表格）"></el-input>
+                                </el-col>
+                                <el-col :span="7">
+                                    <el-input v-model="currentTask.xpaths.next_page" placeholder="下一页按钮XPath"></el-input>
+                                </el-col>
+                            </el-row>
+                        </el-form-item>
+                    </template>
+                    <el-form-item label="表格匹配" v-if="currentTask.dataFormat === 'txt'">
+                        <el-row :gutter="10">
+                            <el-col :span="12">
+                                <el-input v-model="currentTask.table_pattern" placeholder="表格的正则匹配，从每行开头匹配，如: (\S+)\s+#\s+domain - (.*)"></el-input>
+                            </el-col>
+                        </el-row>
+                    </el-form-item>
+                    <el-form-item label="列解析">
+                        <div v-for="(item, index) in currentTask.parseValues" :key="index" class="dynamic-row">
+                            <el-row :gutter="10" type="flex" align="middle">
+                                <el-col :span="8">
+                                    <el-input v-model="item.key" placeholder="解析字段"></el-input>
+                                </el-col>
+                                <el-col :span="8">
+                                    <template v-if ="currentTask.parseType === 0">
+                                        <span>第</span>
+                                        <el-input-number v-model="item.index" :min="0" controls-position="right" placeholder="列索引"></el-input-number>
+                                        <span>列</span>
+                                    </template>
+                                    <el-input v-else v-model="item.pattern" placeholder="正则表达式，如：(简单|中等|困难)"></el-input>
+                                </el-col>
+                                <el-col :span="2">
+                                    <el-button type="danger" icon="el-icon-delete" @click="removeParseValue(index, currentTask)"></el-button>
+                                </el-col>
+                            </el-row>
+                        </div>
+                        <el-button type="primary" icon="el-icon-plus" @click="addParseValue(currentTask)">添加解析值</el-button>
+                    </el-form-item>
+                    <el-form-item label="其他值">
+                        <div v-for="(item, index) in currentTask.otherValues" :key="index" class="dynamic-row">
+                            <el-row :gutter="10" type="flex" align="middle">
+                                <el-col :span="7">
+                                    <el-input v-model="item.source" placeholder="请输入源值"></el-input>
+                                </el-col>
+                                <el-col :span="4">
+                                    <el-select v-model="item.valueType" placeholder="取值类型">
+                                        <el-option label="固定值" value="fixed"></el-option>
+                                        <el-option label="正则匹配" value="regex"></el-option>
+                                        <el-option label="特殊值" value="special"></el-option>
+                                    </el-select>
+                                </el-col>
+                                <el-col :span="11">
+                                    <el-input v-if="item.valueType != 'special'" v-model="item.target" placeholder="请输入固定值或正则表达式"></el-input>
+                                    <el-select v-else v-model="item.target" placeholder="请选择特殊值">
+                                        <el-option
+                                                v-for="option in specialValues"
+                                                :key="option.value"
+                                                :label="option.label"
+                                                :value="option.value"
+                                        ></el-option>
+                                    </el-select>
+                                </el-col>
+                                <el-col :span="2">
+                                    <el-button type="danger" icon="el-icon-delete" @click="removeOtherValues(index, currentTask)"></el-button>
+                                </el-col>
+                            </el-row>
+                        </div>
+                        <el-button type="primary" icon="el-icon-plus" @click="addOtherValues(currentTask)">添加其他值</el-button>
+                    </el-form-item>
+                    <el-form-item label="子任务" style="margin-bottom: 60px;">
+                        <div class="children">
+                            <el-tree
+                                :data="currentTask.children"
+                                node-key="id"
+                                defualt-expand-all
+                                v-if="currentTask.children && currentTask.children.length > 0"
+                                >
+                                <span class="custom-tree-node" slot-scope="{ node, data }">
+                                <span>{{ data.title }}</span>
+                                <span>
+                                    <el-button type="text" style="color: #ff9900" @click="() => editSubtask(data)" icon="el-icon-edit"></el-button>
+                                    <el-button type="text" style="color: #ff0000" @click="() => remove(node, data)" icon="el-icon-delete"></el-button>
+                                    <el-button type="text" style="color: #409EFF" @click="() => append(data)" icon="el-icon-plus"></el-button>
+                                </span>
+                                </span>
+                            </el-tree>
+                            <el-button icon="el-icon-plus" type="primary" @click="addSubtask(currentTask)">添加子任务</el-button>
+                        </div>
+                        <!-- 编辑子任务对话框 -->
+                        <el-dialog :visible.sync="editSubtaskDialogVisible" title="编辑子任务" width="80%" append-to-body>
+                            <el-form label-width="80px">
+                                <el-form-item label="名称">
+                                    <el-input v-model="subtask.title"></el-input>
+                                </el-form-item>
+                                <el-form-item label="链接XPath">
+                                    <el-input v-model="subtask.linkXPath" placeholder="相对于父节点的行内链接的XPath"></el-input>
+                                </el-form-item>
+                                <el-form label-width="80px">
+                                    <el-row :gutter="20">
+                                        <el-col :span="6">
+                                            <el-form-item label="数据格式">
+                                                <el-select v-model="subtask.dataFormat" placeholder="请选择数据格式">
+                                                    <el-option label="文本类（TXT）" value="txt"></el-option>
+                                                    <el-option label="表格类（CSV）" value="csv"></el-option>
+                                                    <el-option label="网页类（HTML）" value="html"></el-option>
+                                                </el-select>
+                                            </el-form-item>
+                                        </el-col>
+                                        <el-col :span="6">
+                                            <el-form-item label="解析类型">
+                                                <el-select v-model="subtask.parseType" placeholder="表格解析类型">
+                                                    <el-option label="列索引（从0开始）" :value="0" v-if="subtask.dataFormat !== 'html'"></el-option>
+                                                    <el-option label="正则匹配" :value="1"></el-option>
+                                                </el-select>
+                                            </el-form-item>
+                                        </el-col>
+                                        <el-col :span="12">
+                                            <el-form-item label="最大爬取数" label-width="100px">
+                                                <el-input-number v-model="subtask.maxCount" :min="1" controls-position="right" placeholder="不少于1" style="margin: 0 4px;"></el-input-number>
+                                            </el-form-item>
+                                        </el-col>
+                                    </el-row>
+                                </el-form>
+                                <template  v-if="subtask.dataFormat === 'html'">
+                                    <el-form-item label="动作组">
+                                        <div v-for="(item, index) in subtask.before_action_group" :key="index" class="dynamic-row">
+                                            <el-row :gutter="10" type="flex" align="middle">
+                                                <el-col :span="7">
+                                                    <el-input v-model="item.source" placeholder="请输入动作名称"></el-input>
+                                                </el-col>
+                                                <el-col :span="4">
+                                                    <el-select v-model="item.actionType" placeholder="动作类型">
+                                                        <el-option label="点击" value="click"></el-option>
+                                                        <el-option label="输入" value="input"></el-option>
+                                                    </el-select>
+                                                </el-col>
+                                                <el-col :span="11">
+                                                    <el-input v-if="item.actionType == 'click'" v-model="item.target" placeholder="请输入点击元素的XPath"></el-input>
+                                                    <el-input v-else-if="item.actionType == 'input'" v-model="item.target" placeholder="请输入内容"></el-input>
+                                                </el-col>
+                                                <el-col :span="2">
+                                                    <el-button type="danger" icon="el-icon-delete" @click="removeActionType(index, subtask)"></el-button>
+                                                </el-col>
+                                            </el-row>
+                                        </div>
+                                        <el-button type="primary" icon="el-icon-plus" @click="addActionType(subtask)">添加开始动作</el-button>
+                                    </el-form-item>
+                                    <el-form-item label="XPath">
+                                        <el-row :gutter="10">
+                                            <el-col :span="7">
+                                                <el-input v-model="subtask.xpaths.table" placeholder="表格XPath，如: //div[@role='table']"></el-input>
+                                            </el-col>
+                                            <el-col :span="7">
+                                                <el-input v-model="subtask.xpaths.row" placeholder="行XPath（相对于表格）"></el-input>
+                                            </el-col>
+                                            <el-col :span="7">
+                                                <el-input v-model="subtask.xpaths.next_page" placeholder="下一页按钮XPath"></el-input>
+                                            </el-col>
+                                        </el-row>
+                                    </el-form-item>
+                                </template>
+                                <el-form-item label="表格匹配" v-if="subtask.dataFormat === 'txt'">
+                                    <el-row :gutter="10">
+                                        <el-col :span="12">
+                                            <el-input v-model="subtask.table_pattern" placeholder="表格的正则匹配，从每行开头匹配，如: (\S+)\s+#\s+domain - (.*)"></el-input>
+                                        </el-col>
+                                    </el-row>
+                                </el-form-item>
+                                <el-form-item label="列解析">
+                                    <div v-for="(item, index) in subtask.parseValues" :key="index" class="dynamic-row">
+                                        <el-row :gutter="10" type="flex" align="middle">
+                                            <el-col :span="8">
+                                                <el-input v-model="item.key" placeholder="解析字段"></el-input>
+                                            </el-col>
+                                            <el-col :span="8">
+                                                <template v-if ="subtask.parseType === 0">
+                                                    <span>第</span>
+                                                    <el-input-number v-model="item.index" :min="0" controls-position="right" placeholder="列索引"></el-input-number>
+                                                    <span>列</span>
+                                                </template>
+                                                <el-input v-else v-model="item.pattern" placeholder="正则表达式，如：(简单|中等|困难)"></el-input>
+                                            </el-col>
+                                            <el-col :span="2">
+                                                <el-button type="danger" icon="el-icon-delete" @click="removeParseValue(index, subtask)"></el-button>
+                                            </el-col>
+                                        </el-row>
+                                    </div>
+                                    <el-button type="primary" icon="el-icon-plus" @click="addParseValue(subtask)">添加解析值</el-button>
+                                </el-form-item>
+                                <el-form-item label="其他值">
+                                    <div v-for="(item, index) in subtask.otherValues" :key="index" class="dynamic-row">
+                                        <el-row :gutter="10" type="flex" align="middle">
+                                            <el-col :span="7">
+                                                <el-input v-model="item.source" placeholder="请输入源值"></el-input>
+                                            </el-col>
+                                            <el-col :span="4">
+                                                <el-select v-model="item.valueType" placeholder="取值类型">
+                                                    <el-option label="固定值" value="fixed"></el-option>
+                                                    <el-option label="正则匹配" value="regex"></el-option>
+                                                    <el-option label="特殊值" value="special"></el-option>
+                                                </el-select>
+                                            </el-col>
+                                            <el-col :span="11">
+                                                <el-input v-if="item.valueType != 'special'" v-model="item.target" placeholder="请输入固定值或正则表达式"></el-input>
+                                                <el-select v-else v-model="item.target" placeholder="请选择特殊值">
+                                                    <el-option
+                                                            v-for="option in specialValues"
+                                                            :key="option.value"
+                                                            :label="option.label"
+                                                            :value="option.value"
+                                                    ></el-option>
+                                                </el-select>
+                                            </el-col>
+                                            <el-col :span="2">
+                                                <el-button type="danger" icon="el-icon-delete" @click="removeOtherValues(index, subtask)"></el-button>
+                                            </el-col>
+                                        </el-row>
+                                    </div>
+                                    <el-button type="primary" icon="el-icon-plus" @click="addOtherValues(subtask)">添加其他值</el-button>
+                                </el-form-item>
+                            </el-form>
+                            <div slot="footer" class="dialog-footer">
+                                <el-button @click="editSubtaskDialogVisible = false">取消</el-button>
+                                <el-button @click="saveEditedSubtask">保存</el-button>
+                            </div>
+                        </el-dialog>
+                    </el-form-item>
+                </template>
+            </el-form>
+            <div class="action-buttons">
+                <el-button type="warning" icon="el-icon-refresh" @click="runTask">运行</el-button>
+                <el-button type="info" icon="el-icon-search" @click="showPreview">预览</el-button>
+                <div style="float: right">
+                    <el-button icon="el-icon-plus" type="primary" @click="createNewTask">新增</el-button>
+                    <el-button icon="el-icon-copy-document" type="primary" @click="copyToNewTask">复制</el-button>
+                    <el-button icon="el-icon-files" type="success" @click="saveTask">保存</el-button>
+                    <el-button icon="el-icon-delete" type="danger" @click="deleteTask">删除</el-button>
+                    <el-button icon="el-icon-folder-opened" type="info" @click="getResult">查看解析结果</el-button>
+                </div>
+            </div>
+
+            <!-- 表格预览解析结果对话框 -->
+            <el-dialog :visible.sync="previewDialogVisible" title="解析结果" width="80%" append-to-body>
+                <el-table :data="parsedTable" style="width: 100%; max-height: 400px; overflow: auto;">
+                    <el-table-column type="index" label="行号" :index="customRowIndex" width="60">
+                        <template slot-scope="scope">
+                            <span style="font-weight: bold; color: #909399">行{{ scope.$index + 1 }}</span>
+                        </template>
+                    </el-table-column>
+                    <el-table-column
+                            v-for="(col, index) in tableColumns"
+                            :key="index"
+                            :label="col.label"
+                            :prop="col.prop"
+                            :width="100"
+                    ></el-table-column>
+                </el-table>
+            </el-dialog>
+        </div>
+    </transition>
+</div>
+</body>
+<script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/element-ui@2.15.3/lib/index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
+<script>
+    new Vue({
+        el: '#app',
+        data: {
+            pageReady: false,
+            tasks: [],
+            currentTask: {
+                id: null,
+                title: '',
+                url: '',
+                scheduleType: 'random', // 'fixed' 或 'random' 或 'interval'
+                days: 1,
+                execTime: '',
+                schedule: '', // 最终存储的cron表达式
+                dataFormat: 'txt',
+                parseType: 1, // 0: 列解析, 1:正则匹配
+                table_pattern: '',
+                interval: 1, // 间隔时间（分钟）
+                xpaths: {
+                    table: '',  // 表格XPath
+                    row: '',    // 行XPath
+                    next_page: '' // 下一页按钮XPath
+                },
+                before_action_group: [],
+                parseValues: [],
+                otherValues: [],
+                isActive: false,
+                maxCount: 10,    // 最多爬取数据数量,
+                crawlMode: 'general',
+                cookies: '',
+                children: [],
+            },
+            specialValues: [
+                { value: 'attack_time', label: '爬取时间' },
+                { value: 'attack_timestamp', label: '爬取时间（10位long时间戳）' },
+            ],
+            subtask: {},
+            currentEditParent: null,
+            editSubtaskDialogVisible:false,
+            previewDialogVisible: false,
+            parsedTable: [],
+            tableColumns: [],
+            originalTask: {},
+            isScriptExists: false,
+        },
+        watch: {
+            'currentTask.dataFormat': {
+                immediate: true,
+                handler() {
+                    if (this.currentTask.dataFormat === 'html') {
+                        this.currentTask.parseType = 1; // html 模式下只允许使用正则匹配行列
+                    }
+                }
+            }
+        },
+        methods: {
+            addSubtask(parentTask) {
+                // 第一层最多5个子任务
+                if (parentTask.children && parentTask.children.length >= 5) {
+                    this.$message.warning('每一层最多 5 个子任务。请优化你的任务结构！');
+                    return;
+                }
+                const newSubtask = {
+                    id: Date.now(),
+                    children: [],
+                    title: `子任务${parentTask.children ? parentTask.children.length + 1 : 1}`,
+                    linkXPath: '',
+                    dataFormat: 'txt',
+                    parseType: 1, // 0: 列解析, 1:正则匹配
+                    table_pattern: '',
+                    before_action_group: [],
+                    parseValues: [],
+                    otherValues: [],
+                    maxCount: 10,
+                    xpaths: {
+                        table: '',  // 表格XPath
+                        row: '',    // 行XPath
+                        next_page: '' // 下一页按钮XPath
+                    },
+                };
+                if (!parentTask.children) {
+                    parentTask.children = [];
+                }
+                parentTask.children.push(newSubtask);
+                console.log("添加子任务：", parentTask.children)
+            },
+            append(node) {
+                const parentLevel = this.getLevel(node);
+                console.log("添加子任务：", parentLevel)
+                if (parentLevel > 2 || node.children.length >= 5) {
+                    this.$message.warning('最多两层，且每一层最多 5 个子任务。请优化你的任务结构！');
+                    return;
+                }
+                const newNode = {
+                    id: Date.now(),
+                    children: [],
+                    title: `子任务${node.children? node.children.length + 1 : 1}`,
+                    linkXPath: '',
+                    dataFormat: 'txt',
+                    parseType: 1, // 0: 列解析, 1:正则匹配
+                    table_pattern: '',
+                    before_action_group: [],
+                    parseValues: [],
+                    otherValues: [],
+                    maxCount: 10,
+                    xpaths: {
+                        table: '',  // 表格XPath
+                        row: '',    // 行XPath
+                        next_page: '' // 下一页按钮XPath
+                    },
+                };
+                // 获取当前节点的层级
+                //const level = this.getLevel(data);
+                // 获取当前层级下的并行任务数量
+                //const parallelTaskCount = this.getParallelTaskCount(data);
+
+                if (node.children) {
+                    node.children.push(newNode);
+                }
+            },
+            getLevel(node) {
+                let level = 0;
+                let current = node;
+                while (current && current!== this.currentTask) {
+                    current = this.findParent(current);
+                    level++;
+                }
+                return level + 1;
+            },
+            getParallelTaskCount(node) {
+                return node.children.filter(child => child!== node).length;
+            },
+            findParent(node) {  // 查找指定节点的父节点
+                const find = (parentNode) => {
+                    if (parentNode.children) {
+                        for (const child of parentNode.children) {
+                            if (child === node) {
+                                return parentNode;
+                            }
+                            const result = find(child);
+                            if (result) {
+                                return result;
+                            }
+                        }
+                    }
+                    return null;
+                };
+                // 遍历当前任务的所有根节点，递归查找指定节点的父节点
+                for (const root of this.currentTask.children) {
+                    const result = find(root);
+                    if (result) {
+                        return result;
+                    }
+                }
+                return null;
+            },
+            findTaskById(children, id) {
+                for (let i = 0; i < children.length; i++) {
+                    if (children[i].id === id) {
+                        return children[i];
+                    }
+                    if (children[i].children) {
+                        const result = this.findTaskById(children[i].children, id);
+                        if (result) {
+                            return result;
+                        }
+                    }
+                }
+                return null;
+            },
+            editSubtask(data) {
+                if (data) {
+                    const foundTask = this.findTaskById(this.currentTask.children, data.id);
+                    if (foundTask) {
+                        console.log("子任务找到，加载子任务...", foundTask);
+                        this.subtask = JSON.parse(JSON.stringify(foundTask));
+                        this.editSubtaskDialogVisible = true;
+                    } else {
+                        this.$message.warning('未找到指定的子任务');
+                    }
+                } else {
+                    this.$message.warning('请选择一个子任务');
+                    return;
+                }
+                console.log(this.subtask);
+                this.editSubtaskDialogVisible = true;
+            },
+            saveEditedSubtask() {
+                const newSubtask = JSON.parse(JSON.stringify(this.subtask));
+                // 调用验证函数
+                if (!this.validateSubtask(newSubtask)) {
+                    return;
+                }
+                if (this.subtask.id) {
+                    const foundTask = this.findTaskById(this.currentTask.children, this.subtask.id);
+                    if (!foundTask) {
+                        this.$message.warning('未找到指定的子任务');
+                        return;
+                    }
+                    Object.assign(foundTask, newSubtask);   // 引用赋值，直接修改currentTask.children
+                    console.log("子任务找到，更新子任务...", foundTask);
+                } else {
+                    newSubtask.id = Date.now();
+                    this.currentEditParent.children.push(newSubtask);
+                }
+                this.$message.success("子任务已保存")
+                console.log("保存成功", this.currentTask.children);
+                this.editSubtaskDialogVisible = false;
+            },
+            validateSubtask(subtask) {
+                const showWarning = (msg) => (this.$message.warning(msg), false);
+                if (!subtask.title.trim()) return showWarning('请输入子任务名称');
+                if (!subtask.dataFormat) return showWarning('请选择数据格式');
+                if (subtask.dataFormat!== 'html' && subtask.table_pattern &&!subtask.table_pattern()) {
+                    try { new RegExp(subtask.table_pattern); } catch (e) { return showWarning('表格正则匹配不合法，请先在https://regex101.com/ 验证是否匹配'); }
+                }
+                if (subtask.scheduleType === 'fixed' && (!subtask.days ||!subtask.execTime)) return showWarning('请填写定时任务的天数和执行时间');
+                if (subtask.scheduleType === 'interval' &&!subtask.interval) return showWarning('请填写间隔时间');
+                if (subtask.dataFormat === 'html') {
+                    const xpathRegex = /^(\/\/?|@|[\w-]+|\[.*?\]|\(.*?\)|\*|@[\w-]+|\.\.|\.)/;
+                    const validateXPath = (xpath, msg) => (!xpath.trim() ||!xpathRegex.test(xpath))? showWarning(msg) : true;
+                    // 验证 XPath（可空）
+                    if (subtask.xpaths.table.trim() &&!validateXPath(subtask.xpaths.table, '请输入合法表格XPath')) return false;
+                    if (subtask.xpaths.row.trim() &&!validateXPath(subtask.xpaths.row, '请输入合法行XPath')) return false;
+                    if (subtask.xpaths.next_page.trim() &&!validateXPath(subtask.xpaths.next_page, '请输入合法下一页按钮XPath')) return false;
+                    ['table', 'row', 'next_page'].forEach(key => subtask.xpaths[key] = subtask.xpaths[key].trim());
+                }
+                //if (!subtask.parseValues ||!subtask.parseValues.length) return showWarning('请添加解析值');
+                if (subtask.parseValues.some(item =>!item.key.trim())) return showWarning('解析字段不能为空');
+                if (subtask.otherValues.some(item =>!item.source.trim() ||!item.target.trim())) return showWarning('源值和目标值不能为空');
+                if (subtask.parseType === 1) {
+                    for (let item of subtask.parseValues) {
+                        try { new RegExp(item.pattern); } catch (e) { return showWarning(`${item.key}的正则表达式不合法，请先在https://regex101.com/ 验证是否匹配`); }
+                    }
+                }
+                if (!subtask.maxCount) return showWarning('请填写最多爬取数据数量');
+                return true;
+            },
+            async remove(node, data) {
+                try {
+                    await this.$confirm('确认删除该子任务吗？', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    })
+                } catch (error) { return;}
+
+                // 检查是否为根节点
+                const isRoot = this.currentTask.children.some(item => item.id === data.id);
+                if (isRoot) {
+                    // 如果是根节点，直接从 currentTask.children 中移除
+                    const index = this.currentTask.children.findIndex(item => item.id === data.id);
+                    if (index > -1) {
+                        this.currentTask.children.splice(index, 1);
+                    }
+                } else {
+                    // 如果是子节点，找到父节点并从父节点的 children 中移除
+                    const parent = this.findParent(data);
+                    if (parent) {
+                        const index = parent.children.findIndex(item => item.id === data.id);
+                        if (index > -1) {
+                            parent.children.splice(index, 1);
+                        }
+                    }
+                }
+            },
+            async checkScriptFile() {
+                if (!this.currentTask.id) return;
+                try {
+                    const exists = await window.api.checkScriptExists(this.currentTask.id);
+                    this.isScriptExists = exists;
+                } catch (error) {
+                    console.error('Error checking script existence:', error);
+                }
+            },
+            openScriptFile() {
+                window.api.openScriptFile(this.currentTask.id);
+            },
+            // 判断当前任务数据是否已被修改
+            isTaskChanged() {
+                return JSON.stringify(this.currentTask) !== JSON.stringify(this.originalTask);
+            },
+            backToList() {
+                window.location.href = 'index.html';
+            },
+            beforeScriptFileUpload(file) {
+                if (this.currentTask.id == null) {
+                    this.$message.warning('请先选择任务');
+                    return false;
+                }
+                if (this.currentTask.crawlMode !== 'pro') {
+                    this.$message.warning('非专家模式无法上传脚本');
+                    return false;
+                }
+                // 检查文件类型
+                const allowedTypes = ['py'];
+                const fileExtension = file.name.split('.').pop().toLowerCase();
+                if (!allowedTypes.includes(fileExtension)) {
+                    this.$message.error('请上传.py文件');
+                    return false;
+                }
+                return true;
+            },
+            handleScriptFileChange: _.debounce(async function(file) {
+                if (!file) return;
+                if (this.currentTask.id == null) {
+                    this.$message.warning('请先保存任务');
+                    return;
+                }
+                try {
+                    const isOk = await window.api.uploadScript(this.currentTask.id, file);
+                    if (isOk) {
+                        this.isFileUploaded = true;
+                        this.$message.success('脚本上传成功');
+                        await this.checkScriptFile();
+                    } else {
+                        this.$message.error('脚本上传失败');
+                    }
+                } catch (error) {
+                    this.$message.error('上传过程中发生错误：' + error.message);
+                }
+            }, 300),    // 300毫秒内只执行一次，防止多次上传
+            async loadTasks() {
+                try {
+                    this.tasks = await window.api.getTasksBasic();
+                    if (this.tasks.length > 0 && this.currentTask.id) {
+                        await this.loadTask(this.currentTask.id);
+                    } else {
+                        this.createNewTask();
+                    }
+                } catch (error) {
+                    this.$message.error('加载任务失败');
+                    this.createNewTask();
+                }
+            },
+            async loadTask(taskId) {
+                try {
+                    const task = await window.api.getTask(taskId);
+                    if (task) {
+                        this.currentTask = task;
+                        //console.log(JSON.stringify(this.currentTask));
+                        this.originalTask = JSON.parse(JSON.stringify(this.currentTask));
+                        localStorage.setItem('currentTaskId', JSON.stringify(taskId));
+                        await this.checkScriptFile();
+                    }
+                } catch (error) {
+                    this.$message.error('加载失败');
+                    localStorage.removeItem('currentTaskId');
+                }
+            },
+            async runTask() {
+                // 判断数据是否有改动
+                if (this.isTaskChanged()) {
+                    try {
+                        await this.$confirm('检测到数据已改变，是否保存任务？', '提示', {
+                            confirmButtonText: '保存',
+                            cancelButtonText: '取消',
+                            type: 'warning'
+                        });
+                        await this.saveTask();
+                    } catch (error) {
+                        // 用户取消了保存，则不继续运行任务
+                        return;
+                    }
+                }
+                const loadingMessage = this.$message({
+                    message: `正在运行任务 ${this.currentTask.title} ...`,
+                    type: 'info',
+                    duration: 0,
+                    showClose: true
+                });
+                try {
+                    const response = await window.api.runTask(this.currentTask.id);
+                    if (response.success) {
+                        this.$message.success('运行成功');
+                    }
+                } catch (error) {
+                    this.$message.error('运行失败：' + error);
+                } finally {
+                    loadingMessage.close();
+                }
+            },
+            createNewTask() {
+                this.currentTask = {
+                    id: null,
+                    title: `新任务${this.tasks.length + 1}`,
+                    url: '',
+                    scheduleType: 'random',
+                    days: 1,
+                    execTime: '',
+                    schedule: '',
+                    dataFormat: 'txt', // 设置默认格式
+                    parseType: 1, // 0: 列索引，1: 正则匹配
+                    table_pattern: '',
+                    xpaths: {
+                        table: '',  // 表格XPath
+                        row: '',    // 行XPath
+                        next_page: '' // 下一页按钮XPath
+                    },
+                    interval: 1, // 间隔时间（分钟）
+                    before_action_group: [],
+                    parseValues: [],
+                    otherValues: [],
+                    isActive: false,
+                    maxCount: 10,    // 最多爬取数据数量
+                    crawlMode: 'general',
+                    cookies: '',
+                };
+                this.originalTask = JSON.parse(JSON.stringify(this.currentTask));
+            },
+            async copyToNewTask () {
+                try {
+                    const newTask = JSON.parse(JSON.stringify(this.currentTask));
+                    this.createNewTask();
+                    this.currentTask = newTask;
+                    newTask.id = null;
+                    newTask.title = `${this.currentTask.title}(副本)`;
+                    await this.saveTask();
+                }
+                catch (error) {
+                    this.$message.error('复制失败: ' + error.message);
+                }
+            },
+            async showPreview() {
+                if (!this.currentTask.id) {
+                    this.$message.warning('请先选择任务');
+                    return;
+                }
+
+                const loadingMessage = this.$message({
+                    message: `正在解析任务 ${this.currentTask.title} ...`,
+                    type: 'info',
+                    duration: 0,
+                    showClose: true
+                });
+
+                try {
+                    const response = await window.api.parseTask(this.currentTask.id);
+                    if (response.success) {
+                        this.parsedTable = response.table;
+                        // 处理列表数据，将其转换为字符串
+                        this.parsedTable = this.parsedTable.map(row => {
+                            return Object.keys(row).reduce((newRow, key) => {
+                                const value = row[key];
+                                if (Array.isArray(value)) {
+                                    // 先将第一个元素转换为 JSON 字符串
+                                    const jsonStr = JSON.stringify(value[0]);
+                                    // 再截取前 100 个字符
+                                    newRow[key] = jsonStr.substring(0, 100) + '...';
+                                } else {
+                                    newRow[key] = value;
+                                }
+                                return newRow;
+                            }, {});
+                        });
+                        // 打印前5行，检查数据格式
+                        console.log(this.parsedTable.slice(0, 5));
+
+                        // 确保获取第一个数据行的字段名作为列标题
+                        const firstRow = this.parsedTable[0];
+                        if (firstRow) {
+                            this.tableColumns = Object.keys(firstRow).map(key => ({
+                                label: key,  // 使用字段名作为列标题
+                                prop: key    // 使用字段名作为列的prop
+                            }));
+                        }
+
+                        this.previewDialogVisible = true;
+                    } else {
+                        this.$message.error('解析失败: ' + response.error);
+                    }
+                } catch (error) {
+                    this.$message.error('解析失败: ' + error.message);
+                } finally {
+                    loadingMessage.close();
+                }
+            },
+            async getResult() {
+                if (!this.currentTask.id) {
+                    this.$message.warning('请先选择任务');
+                    return;
+                }
+
+                try {
+                    // 直接打开电脑任务管理器的文件夹
+                    await window.api.openTaskResultFolder(this.currentTask.id);
+                } catch (error) {
+                    if (error !== 'cancel') {
+                        this.$message.error('无法打开文件夹:'+ error.message);
+                    }
+                }
+            },
+            async saveTask() {
+                try {
+                    if (!this.validateData()) { return; }
+                    if (!this.isTaskChanged()) {
+                        this.$message.warning('数据未变动，无需保存');
+                        return;
+                    }
+                    this.updateSchedule();
+
+                    console.log(JSON.stringify(this.currentTask))
+
+                    if (this.currentTask.id) {
+                        const response = await window.api.updateTask(this.currentTask.id, this.currentTask);
+                        this.$message.success('保存成功: ' + JSON.stringify(response));
+                    } else {
+                        const result = await window.api.createTask(this.currentTask);
+                        this.currentTask.id = result.id;
+                        this.$message.success('创建成功' + JSON.stringify(result) + '，请保存ID');
+                    }
+                    await this.loadTasks();
+                } catch (error) {
+                    this.$message.error('保存失败: ' + error.message);
+                }
+            },
+            async deleteTask() {
+                if (!this.currentTask.id) {
+                    this.$message.warning('请先选择要删除的任务');
+                    return;
+                }
+
+                try {
+                    await this.$confirm('确认删除该任务吗？', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    });
+
+                    const currentIndex = this.tasks.findIndex(task => task.id === this.currentTask.id);
+                    await window.api.deleteTask(this.currentTask.id);
+                    this.$message.success('删除成功');
+                    if (currentIndex >= 0) {
+                        // 如果删除的是最后一个任务，选择前一个任务
+                        if (currentIndex === this.tasks.length - 1) {
+                            this.currentTask = this.tasks[currentIndex - 1] || null;
+                        } else {
+                            // 否则选择删除后的下一个任务
+                            this.currentTask = this.tasks[currentIndex + 1] || null;
+                        }
+                    }
+                    await this.loadTasks();
+
+                } catch (error) {
+                    if (error !== 'cancel') {
+                        this.$message.error('删除失败: ' + error.message);
+                    }
+                }
+            },
+            validateData() {
+                const showWarning = (msg) => (this.$message.warning(msg), false);
+                if (!this.currentTask.title.trim()) return showWarning('请输入任务名称');
+                const isValidUrl = /^https?:\/\/.+/i.test(this.currentTask.url) || /file:\/\/.+/i.test(this.currentTask.url);
+                if (!this.currentTask.url.trim() ||!isValidUrl) return showWarning('请输入合法目标URL, 如: http://example.com 或 file:///path/to/file');
+                if (!this.currentTask.dataFormat) return showWarning('请选择数据格式');
+                if (this.currentTask.dataFormat!== 'html' && this.table_pattern &&!this.table_pattern.trim()) {
+                  try { new RegExp(this.table_pattern); } catch (e) { return showWarning('表格正则匹配不合法，请先在https://regex101.com/ 验证是否匹配'); }
+                }
+                if (this.currentTask.scheduleType === 'fixed' && (!this.currentTask.days ||!this.currentTask.execTime)) return showWarning('请填写定时任务的天数和执行时间');
+                if (this.currentTask.scheduleType === 'interval' &&!this.currentTask.interval) return showWarning('请填写间隔时间');
+                if (this.currentTask.dataFormat === 'html') {
+                    const xpathRegex = /^(\/\/?|@|[\w-]+|\[.*?\]|\(.*?\)|\*|@[\w-]+|\.\.|\.)/;
+                    const validateXPath = (xpath, msg) => (!xpath.trim() ||!xpathRegex.test(xpath))? showWarning(msg) : true;
+                    // 验证 XPath（可空）
+                    if (this.currentTask.xpaths.table.trim() &&!validateXPath(this.currentTask.xpaths.table, '请输入合法表格XPath')) return false;
+                    if (this.currentTask.xpaths.row.trim() &&!validateXPath(this.currentTask.xpaths.row, '请输入合法行XPath')) return false;
+                    if (this.currentTask.xpaths.next_page.trim() &&!validateXPath(this.currentTask.xpaths.next_page, '请输入合法下一页按钮XPath')) return false;
+                    ['table', 'row', 'next_page'].forEach(key => this.currentTask.xpaths[key] = this.currentTask.xpaths[key].trim());
+                }
+                if (!this.currentTask.parseValues ||!this.currentTask.parseValues.length) return showWarning('请添加解析值');
+                if (this.currentTask.parseValues.some(item =>!item.key.trim())) return showWarning('解析字段不能为空');
+                if (this.currentTask.otherValues.some(item =>!item.source.trim() ||!item.target.trim())) return showWarning('源值和目标值不能为空');
+                if (this.currentTask.parseType === 1) {
+                  for (let item of this.currentTask.parseValues) {
+                    try { new RegExp(item.pattern); } catch (e) { return showWarning(`${item.key}的正则表达式不合法，请先在https://regex101.com/ 验证是否匹配`); }
+                  }
+                }
+                if (!this.currentTask.maxCount) return showWarning('请填写最多爬取数据数量');
+                if (this.currentTask.cookies &&!/^([^=;]+=[^;]*;?\s*)+$/.test(this.currentTask.cookies)) return showWarning('请输入合法的Cookies格式，如bid=xxx; xyz=999; ...');
+                // 检查子任务名称是否唯一
+                const checkSubtaskNames = (tasks) => {
+                    const names = new Set();
+                    return tasks.every(task => {
+                        if (names.has(task.title)) {
+                            showWarning(`子任务名称 "${task.title}" 在同一层级下重复，请修改`);
+                            return false;
+                        }
+                        names.add(task.title);
+                        return!task.children || checkSubtaskNames(task.children);
+                    });
+                };
+
+                if (this.currentTask.children &&!checkSubtaskNames(this.currentTask.children)) return false;
+                return true;
+            },
+            addParseValue(task = this.currentTask) { task.parseValues.push({ key: '', index: 0, pattern: '' }); },
+            removeParseValue(index, task = this.currentTask) { task.parseValues.splice(index, 1); },
+            addOtherValues(task = this.currentTask) { task.otherValues.push({ source: '', valueType: 'fixed', target: '' }); },
+            removeOtherValues(index, task = this.currentTask) { task.otherValues.splice(index, 1); },
+            addActionType(task = this.currentTask) {
+                console.log(JSON.stringify(task));
+                // 确保 before_action_group 数组存在
+                if (!task.before_action_group) {
+                    console.log("不存在")
+                    task.before_action_group = [];
+                }
+                task.before_action_group.push({ source: '', actionType: 'click', target: '' });
+            },
+            removeActionType(index, task = this.currentTask) { task.before_action_group.splice(index, 1); },
+            async toggleTaskStatus() {
+                try {
+                    this.currentTask.isActive = !this.currentTask.isActive;
+                    await window.api.updateTaskStatus(
+                        this.currentTask.id,
+                        this.currentTask.isActive
+                    );
+                    await this.loadTasks();
+                    this.$message.success('更新状态成功');
+                } catch (error) {
+                    this.$message.error('更新状态失败，请检查网络连接');
+                    this.currentTask.isActive = !this.currentTask.isActive; // 恢复状态
+                }
+            },
+            handleScheduleTypeChange(value) {
+                // 切换到随机
+                if (value === 'random') {
+                    this.currentTask.days = 1;
+                    this.currentTask.execTime = '';
+                    this.currentTask.schedule = '';
+                }
+                // 切换到定时
+                else if (value === 'fixed') {
+                    // 如果之前没有设置过时间，设置默认值
+                    if (!this.currentTask.execTime) {
+                        this.currentTask.execTime = '00:00';
+                    }
+                    this.updateSchedule();
+                }
+                // 间隔多少时间
+                else if (value === 'interval') {
+                    console.log('interval:', this.currentTask.interval);
+                }
+            },
+            // 更新cron表达式
+            updateSchedule() {
+                if (this.currentTask.scheduleType === 'fixed' && this.currentTask.execTime) {
+                    const [hours, minutes] = this.currentTask.execTime.split(':');
+                    this.currentTask.schedule = `${minutes} ${hours} */${this.currentTask.days} * *`;
+                } else {
+                    this.currentTask.schedule = '';
+                }
+            },
+            // 自定义预览行号
+            customRowIndex(index) {
+                return index;
+            },
+            async initializeTask() {
+                const storedTaskId = localStorage.getItem('currentTaskId');
+                if (storedTaskId) {
+                    // 编辑已有任务
+                    this.currentTask.id = JSON.parse(storedTaskId);
+                } else {
+                    // 创建新任务
+                    this.createNewTask();
+                }
+            },
+        },
+        async mounted() {
+            try {
+                await this.initializeTask();
+                await this.loadTasks();
+                // 使用 nextTick 确保 DOM 更新
+                this.$nextTick(() => {
+                    this.pageReady = true;
+                });
+            } catch (error) {
+                console.error('Page initialization failed:', error);
+                this.$message.error('页面加载失败');
+            }
+        }
+    });
+</script>
+</html>

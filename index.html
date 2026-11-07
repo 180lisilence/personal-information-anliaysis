@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>个人信息聚合工具集 · Personal Information Analysis</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2230; --line:#30363d;
+    --txt:#e6edf3; --muted:#9da7b3; --accent:#58a6ff; --accent2:#3fb950;
+    --warn:#d29922; --pink:#f778ba;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--txt);line-height:1.7}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:960px;margin:0 auto;padding:48px 20px 80px}
+  header.hero{text-align:center;padding:40px 0 24px}
+  .badge{display:inline-block;font-size:12px;letter-spacing:1px;color:var(--muted);
+    border:1px solid var(--line);border-radius:999px;padding:4px 12px;margin-bottom:18px}
+  h1{font-size:34px;margin:0 0 10px;background:linear-gradient(90deg,#58a6ff,#f778ba);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--muted);font-size:16px;margin:0 auto;max-width:680px}
+  .actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin:28px 0 8px}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:12px 22px;border-radius:10px;
+    font-weight:600;font-size:15px;transition:.15s;cursor:pointer;border:1px solid transparent}
+  .btn-primary{background:var(--accent);color:#0d1117}
+  .btn-primary:hover{background:#79b8ff;text-decoration:none}
+  .btn-ghost{background:transparent;border-color:var(--line);color:var(--txt)}
+  .btn-ghost:hover{border-color:var(--accent);text-decoration:none}
+  section{margin-top:46px}
+  h2{font-size:22px;border-left:4px solid var(--accent);padding-left:12px;margin-bottom:14px}
+  h3{font-size:17px;color:var(--accent2);margin:22px 0 8px}
+  p,li{color:var(--txt)}
+  .muted{color:var(--muted)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:10px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}
+  .card h3{margin-top:0}
+  .card .tag{font-size:12px;color:var(--muted)}
+  code{background:var(--panel2);padding:2px 6px;border-radius:5px;font-size:13px;
+    font-family:"SFMono-Regular",Consolas,monospace;color:#ffa657}
+  pre{background:var(--panel2);border:1px solid var(--line);border-radius:10px;
+    padding:14px 16px;overflow:auto;font-size:13px;line-height:1.5}
+  pre code{background:none;padding:0;color:var(--txt)}
+  .note{background:rgba(210,153,34,.12);border:1px solid var(--warn);border-radius:10px;
+    padding:12px 16px;color:#f0d58b;font-size:14px}
+  .tree{font-size:13px;color:var(--muted)}
+  .pill{display:inline-block;background:var(--panel2);border:1px solid var(--line);
+    border-radius:6px;padding:2px 9px;font-size:12px;margin:2px}
+  footer{margin-top:60px;text-align:center;color:var(--muted);font-size:13px;
+    border-top:1px solid var(--line);padding-top:24px}
+  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:14px}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left}
+  th{background:var(--panel2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="badge">OPEN SOURCE · OSINT TOOLKIT</div>
+    <h1>个人信息聚合工具集</h1>
+    <p class="sub">输入手机号 / 身份证 / 用户名 / 邮箱等片段，从公开网络聚合出更完整的个人信息画像。
+    本仓库包含三套实现：桌面爬虫、Android 爬虫 App，以及聚合桌面客户端。</p>
+    <div class="actions">
+      <a class="btn btn-primary" href="https://github.com/180lisilence/personal-information-anliaysis/archive/refs/heads/main.zip">⬇ 下载整个仓库 (ZIP)</a>
+      <a class="btn btn-ghost" href="https://github.com/180lisilence/personal-information-anliaysis">在 GitHub 查看</a>
+    </div>
+    <p class="muted" style="font-size:13px">仓库地址：<code>https://github.com/180lisilence/personal-information-anliaysis</code> · 分支：<code>main</code></p>
+  </header>
+
+  <!-- 项目简介 -->
+  <section>
+    <h2>项目简介</h2>
+    <p>这是一组围绕「公开个人信息采集与聚合」的工具代码集合，定位为<strong>本地运行、公开数据源、合规红线内</strong>的情报收集（OSINT）研究工具。三者共享同一套设计理念，但形态不同，便于在不同场景下取用：</p>
+    <div class="grid">
+      <div class="card">
+        <h3>🖥 crawler（Python 桌面爬虫）</h3>
+        <span class="tag">Python + tkinter + requests/bs4</span>
+        <p>输入网址即可把网页正文、标题、链接抓取为 txt。带图形面板与命令行两种入口，可导出原始 HTML、图片清单，支持代理与无头渲染。</p>
+      </div>
+      <div class="card">
+        <h3>📱 apk（Android 爬虫 App）</h3>
+        <span class="tag">Java + aapt2/d8/apksigner</span>
+        <p>把桌面爬虫移植成手机 App：输入链接 → 抓取 → 每个链接单独生成一个 txt。纯 <code>java.*</code> 实现，33KB 自签名 APK，免存储权限。</p>
+      </div>
+      <div class="card">
+        <h3>🔍 osint-desktop（聚合桌面客户端）</h3>
+        <span class="tag">Electron + Node + Python</span>
+        <p>输入片段即聚合画像：手机号归属地、身份证解析、用户名跨站搜索、邮箱注册检测，结果以关系图谱 + 时间线 + 表格呈现并导出报告。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 下载 -->
+  <section>
+    <h2>下载与获取</h2>
+    <p>仓库以源码形式发布（已剔除 <code>node_modules</code>、<code>dist</code>、<code>out</code>、构建产物与抓取输出）。下载后按各子项目 README 自行构建：</p>
+    <table>
+      <tr><th>模块</th><th>构建产物</th><th>构建命令</th></tr>
+      <tr><td>crawler</td><td>WebCrawler.exe（单文件，~21MB）</td><td><code>双击 build_exe.bat</code> 或 <code>pyinstaller</code></td></tr>
+      <tr><td>apk</td><td>WebCrawler.apk（~33KB）</td><td><code>python build.py</code></td></tr>
+      <tr><td>osint-desktop</td><td>Windows 安装包 .exe</td><td><code>npm install &amp;&amp; npm run dist</code>（electron-builder）</td></tr>
+    </table>
+    <div class="actions" style="justify-content:flex-start;margin-top:18px">
+      <a class="btn btn-primary" href="https://github.com/180lisilence/personal-information-anliaysis/archive/refs/heads/main.zip">⬇ 下载仓库源码 ZIP</a>
+    </div>
+    <p class="muted" style="font-size:13px">提示：ZIP 解压后即为完整源码树；<code>third_party/</code> 下已内置 holehe、maigret、sherlock、phonedata 等开源依赖，无需再拉取。</p>
+  </section>
+
+  <!-- 原理说明 -->
+  <section>
+    <h2>原理说明</h2>
+
+    <h3>1. 网页爬虫（crawler / apk 共用核心逻辑）</h3>
+    <p>两个端的核心都是「取页面 → 解编码 → 抽正文 → 落盘」：</p>
+    <ul>
+      <li><strong>请求层</strong>：伪装浏览器 UA，开启 gzip，自动跟随重定向；失败重试 2 次；代理不通自动回退直连，本地地址默认不走代理。</li>
+      <li><strong>编码识别</strong>：优先读 <code>meta charset</code> / HTTP 头；无声明时靠乱码检测回退 GBK，保证中文不乱码。</li>
+      <li><strong>正文抽取</strong>：剔除 <code>script/style/nav/footer</code> 等噪声标签，保留标题层级与列表结构，相对链接补全为绝对地址。</li>
+      <li><strong>落盘</strong>：每个网页独立生成一个 txt，头部带源链接 / 最终链接 / HTTP 状态 / 抓取时间；失败页单独写 <code>_失败.txt</code> 记录原因，互不干扰。</li>
+    </ul>
+    <p>Android 端 <code>Crawler.java</code> 刻意只用 <code>java.*</code> 标准库（<code>HttpURLConnection</code> + 正则解析），因此同一份抓取逻辑能在电脑 JDK 上直接跑回归测试，再编译进 APK；保存走 <code>MediaStore</code> 写公共下载目录，<strong>无需申请存储权限</strong>。</p>
+
+    <h3>2. 聚合桌面客户端（osint-desktop）</h3>
+    <p>架构为 <strong>Electron 外壳 + 本地后端服务 + 数据源插件层</strong>：</p>
+    <pre><code>Electron GUI ──IPC/HTTP localhost──▶ 本地后端 (Node + Python)
+                                    ├─ 输入解析层：识别 手机/身份证/用户名/邮箱
+                                    ├─ 聚合引擎：按实体关联成统一画像
+                                    └─ 数据源插件层 (Scanner 接口)
+                                         phone | idcard | username | email …</code></pre>
+    <ul>
+      <li><strong>手机号</strong>：离线用 <code>phonedata</code> 本地库毫秒级查归属地/运营商；在线用搜索引擎 dork 足迹 + 公开 API。</li>
+      <li><strong>身份证</strong>：本地算法——前 6 位地区码表（GB/T 2260）、7–14 位出生日期、17 位加权校验位，无外部依赖。</li>
+      <li><strong>用户名</strong>：Maigret + Sherlock + social-analyzer 多源合并去重，跨上千站点发现账号。</li>
+      <li><strong>邮箱</strong>：holehe 检测 120+ 站点注册情况；GHunt 做 Google 关联（需自备 cookie）。</li>
+      <li><strong>可视化</strong>：关系图谱（实体—关系网）+ 时间线 + 可排序表格，支持 JSON/CSV/PDF/Markdown 报告导出。</li>
+    </ul>
+
+    <div class="note">
+      <strong>合规边界（操作者划线）：</strong>数据源白名单<strong>排除</strong>
+      <code>.gov.cn</code> / <code>.gov</code> / <code>.mil.cn</code> 等政府、党政军、公检法国安类站点，绝不触碰；
+      只聚合<strong>公开可访问</strong>数据，不内置任何需授权密钥才能访问的私密泄露库；
+      速率控制 / 代理 / UA 随机化由配置项控制，避免把目标站点打挂。
+    </div>
+  </section>
+
+  <!-- 目录结构 -->
+  <section>
+    <h2>仓库结构</h2>
+    <pre class="tree"><code>personal-information-anliaysis/
+├── index.html                  ← 本页（项目介绍 / 下载 / 原理）
+├── README.md
+├── OSINT桌面客户端_方案.md       ← 聚合客户端技术方案
+├── crawler/                    Python 桌面爬虫（GUI + CLI）
+│   ├── crawl.py  gui.py  build_exe.bat  WebCrawler.spec
+│   └── README.md
+├── apk/                        Android 爬虫 App（源码 + 离线构建脚本）
+│   ├── src/  res/  AndroidManifest.xml
+│   ├── build.py  gen_icon.py  run_java_test.py  tests/
+│   └── README.md
+└── osint-desktop/              聚合桌面客户端
+    ├── electron/  server/  src/  renderer/  scripts/
+    ├── third_party/            holehe / maigret / sherlock / phonedata
+    └── README.md</code></pre>
+  </section>
+
+  <!-- 快速开始 -->
+  <section>
+    <h2>快速开始（以 crawler 为例）</h2>
+    <pre><code># 安装依赖
+pip install requests beautifulsoup4 lxml
+
+# 图形面板
+双击 run_gui.bat
+
+# 命令行
+python crawl.py https://example.com
+python crawl.py -f urls.txt -o 批量结果.txt
+python crawl.py https://example.com --render   # 需 playwright</code></pre>
+    <p class="muted">其余模块请见各子目录 <code>README.md</code> 与 <code>OSINT桌面客户端_方案.md</code>。</p>
+  </section>
+
+  <footer>
+    <p>Personal Information Analysis Toolkit · 本地运行 · 公开数据源 · 合规红线内置</p>
+    <p>仓库：<a href="https://github.com/180lisilence/personal-information-anliaysis">github.com/180lisilence/personal-information-anliaysis</a></p>
+  </footer>
+
+</div>
+</body>
+</html>

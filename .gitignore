@@ -1,0 +1,27 @@
+# 构建产物 / 二进制
+node_modules/
+dist/
+out/
+build/
+*.apk
+*.exe
+*.jks
+*.idsig
+*.class
+*.dex
+*.asar
+*.log
+*.7z
+*.pyc
+__pycache__/
+
+# 用户数据与抓取输出（不入库）
+.userdata/
+crawler/output/
+*.dat
+
+# 系统 / 编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
